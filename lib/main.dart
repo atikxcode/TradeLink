@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'core/config/firebase_config.dart';
 import 'core/config/supabase_config.dart';
+import 'core/constants/app_colors.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,13 +20,15 @@ class TradelinkApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tradelink',
+      title: 'TradeLink',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE91E63)),
+        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryTeal),
+        scaffoldBackgroundColor: AppColors.backgroundLight,
         useMaterial3: true,
+        fontFamily: 'Roboto',
       ),
-      home: const TechStackInitializedScreen(),
+      home: const LoginScreen(),
     );
   }
 }
@@ -38,60 +42,63 @@ class TechStackInitializedScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF1E1A29),
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF666B).withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF666B).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 64,
+                      color: Color(0xFFFF666B),
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 64,
-                    color: Color(0xFFFF666B),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'TRADELINK',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 2,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'TRADELINK',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Flutter Project & Tech Stack Initialized',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Flutter Project & Tech Stack Initialized',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 32),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B253A),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Column(
+                      children: [
+                        _TechItem(name: 'Mobile Platforms', value: 'Android & iOS'),
+                        Divider(color: Colors.white10),
+                        _TechItem(name: 'PostgreSQL Database', value: 'Supabase (supabase_flutter)'),
+                        Divider(color: Colors.white10),
+                        _TechItem(name: 'User Authentication', value: 'Firebase (firebase_auth)'),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2B253A),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Column(
-                    children: [
-                      _TechItem(name: 'Mobile Platforms', value: 'Android & iOS'),
-                      Divider(color: Colors.white10),
-                      _TechItem(name: 'PostgreSQL Database', value: 'Supabase (supabase_flutter)'),
-                      Divider(color: Colors.white10),
-                      _TechItem(name: 'User Authentication', value: 'Firebase (firebase_auth)'),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
