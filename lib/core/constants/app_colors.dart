@@ -23,4 +23,10 @@ class AppColors {
   static const Color outForDelivery = Color(0xFF9C27B0);
   static const Color delivered = Color(0xFF4CAF50);
   static const Color cancelled = Color(0xFFF44336);
+
+  // Chip Colors
+  static const Color matchingText = Color(0xFFC87A1E);
+  static const Color matchingBg = Color(0xFFFCF4EB);
+  static const Color outForDeliveryText = Color(0xFF0E7966);
+  static const Color outForDeliveryBg = Color(0xFFE6F4F1);
 }
