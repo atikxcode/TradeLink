@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../shopowner/presentation/screens/shopowner_home_screen.dart';
+import '../../../stockholder/presentation/screens/stockholder_home_screen.dart';
 import 'register_screen.dart';
 
 enum UserRole { shopOwner, stockholder }
@@ -25,16 +27,21 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleLogin() {
-    final roleName = _selectedRole == UserRole.shopOwner ? 'Shop Owner' : 'Stockholder';
-    final phone = _phoneController.text.trim();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Logging in as $roleName ($phone)...'),
-        backgroundColor: AppColors.primaryTeal,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (_selectedRole == UserRole.shopOwner) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ShopownerHomeScreen(),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const StockholderHomeScreen(),
+        ),
+      );
+    }
   }
 
   @override

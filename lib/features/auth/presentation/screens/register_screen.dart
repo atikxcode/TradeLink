@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../core/constants/app_categories.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../shopowner/presentation/screens/shopowner_home_screen.dart';
+import '../../../stockholder/presentation/screens/stockholder_home_screen.dart';
 import '../widgets/map_location_picker_dialog.dart';
 import 'login_screen.dart';
 
@@ -56,15 +58,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleRegister() {
-    final roleText = _selectedRole == UserRole.shopOwner ? 'Shop Owner' : 'Stockholder / Wholesaler';
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Account Created Successfully as $roleText!'),
-        backgroundColor: AppColors.primaryTeal,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (_selectedRole == UserRole.shopOwner) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ShopownerHomeScreen(),
+        ),
+        (route) => false,
+      );
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const StockholderHomeScreen(),
+        ),
+        (route) => false,
+      );
+    }
   }
 
   @override
