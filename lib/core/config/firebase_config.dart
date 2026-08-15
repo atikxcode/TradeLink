@@ -4,7 +4,17 @@ import 'package:flutter/foundation.dart';
 /// Configuration helper for Firebase initialization
 class FirebaseConfig {
   /// Initialize Firebase Core for iOS & Android
+  ///
+  /// Firebase has no web configuration in this project yet (no
+  /// `firebase_options.dart`), so it is skipped on web to avoid a crash.
   static Future<void> initialize() async {
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('Firebase skipped on web (no web config present).');
+      }
+      return;
+    }
+
     // Note: On Android & iOS, Firebase reads configuration from:
     // - android/app/google-services.json
     // - ios/Runner/GoogleService-Info.plist
