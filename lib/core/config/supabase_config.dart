@@ -10,7 +10,7 @@ class SupabaseConfig {
   static Future<void> initialize() async {
     await Supabase.initialize(
       url: supabaseUrl,
-      // ignore: deprecated_member_use
+      // iignore: deprecated_member_use
       anonKey: supabaseAnonKey,
     );
   }
