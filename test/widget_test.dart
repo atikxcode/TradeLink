@@ -6,7 +6,7 @@ void main() {
     // Build TradelinkApp widget and trigger a frame
     await tester.pumpWidget(const TradelinkApp());
 
-    // Verify app title renders
-    expect(find.text('TRADELINK'), findsOneWidget);
+    // Verify login screen renders with Log in button
+    expect(find.text('Log in'), findsOneWidget);
   });
 }

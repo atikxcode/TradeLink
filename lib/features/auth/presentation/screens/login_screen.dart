@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'register_screen.dart';
+import 'shop_owner_home_screen.dart';
+import 'stockholder_home_screen.dart';
 
 enum UserRole { shopOwner, stockholder }
 
@@ -34,6 +36,14 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: AppColors.primaryTeal,
         behavior: SnackBarBehavior.floating,
       ),
+    );
+
+    final Widget homeScreen = _selectedRole == UserRole.stockholder
+        ? const StockholderHomeScreen()
+        : const ShopOwnerHomeScreen();
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => homeScreen),
     );
   }
 

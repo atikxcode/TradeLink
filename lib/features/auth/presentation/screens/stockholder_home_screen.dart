@@ -1,7 +1,24 @@
 import 'package:flutter/material.dart';
+import 'stock_screen.dart';
+import 'orders_screen.dart';
+import 'profile_screen.dart';
 
-class StockholderHomeScreen extends StatelessWidget {
+class StockholderHomeScreen extends StatefulWidget {
   const StockholderHomeScreen({super.key});
+
+  @override
+  State<StockholderHomeScreen> createState() => _StockholderHomeScreenState();
+}
+
+class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
+  int _currentIndex = 0;
+
+  static const List<Widget> _tabs = [
+    _StockholderDashboard(),
+    StockScreen(),
+    OrdersScreen(),
+    ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -20,31 +37,7 @@ class StockholderHomeScreen extends StatelessWidget {
               _buildHeader(),
               const Divider(height: 1, color: Color(0xFFE5E7EB)),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  children: [
-                    const SizedBox(height: 24),
-                    _buildStatsRow(),
-                    const SizedBox(height: 24),
-                    _buildSectionHeader('Nearby demands', '6 new'),
-                    const SizedBox(height: 16),
-                    DemandCard(
-                      title: 'Rice — Basmati, 50kg',
-                      distance: '2.1 km',
-                      subtitle: 'Rahim General Store · Mirpur-10',
-                      onAccept: () {},
-                      onDecline: () {},
-                    ),
-                    DemandCard(
-                      title: 'Soybean Oil, 20L',
-                      distance: '3.8 km',
-                      subtitle: 'New Bazar Store · Kazipara',
-                      onAccept: () {},
-                      onDecline: () {},
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
+                child: IndexedStack(index: _currentIndex, children: _tabs),
               ),
             ],
           ),
@@ -145,6 +138,87 @@ class StockholderHomeScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+      ),
+      child: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        selectedItemColor: const Color(0xFF0F5C4F),
+        unselectedItemColor: const Color(0xFF9CA3AF),
+        showSelectedLabels: true,
+        showUnselectedLabels: true,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.inventory_outlined),
+            label: 'Stock',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_outlined),
+            label: 'Orders',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockholderDashboard extends StatelessWidget {
+  const _StockholderDashboard();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      children: [
+        const SizedBox(height: 24),
+        _buildStatsRow(),
+        const SizedBox(height: 24),
+        _buildSectionHeader('Nearby demands', '6 new'),
+        const SizedBox(height: 16),
+        DemandCard(
+          title: 'Rice — Basmati, 50kg',
+          distance: '2.1 km',
+          subtitle: 'Rahim General Store · Mirpur-10',
+          onAccept: () => _showDemandAction(context, 'Accepted', 'Rice — Basmati, 50kg'),
+          onDecline: () => _showDemandAction(context, 'Declined', 'Rice — Basmati, 50kg'),
+        ),
+        DemandCard(
+          title: 'Soybean Oil, 20L',
+          distance: '3.8 km',
+          subtitle: 'New Bazar Store · Kazipara',
+          onAccept: () => _showDemandAction(context, 'Accepted', 'Soybean Oil, 20L'),
+          onDecline: () => _showDemandAction(context, 'Declined', 'Soybean Oil, 20L'),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  void _showDemandAction(BuildContext context, String action, String demand) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$action: $demand'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _buildStatsRow() {
     return Row(
       children: [
@@ -219,45 +293,6 @@ class StockholderHomeScreen extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
-      ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: 0,
-        onTap: (index) {},
-        selectedItemColor: const Color(0xFF0F5C4F),
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_outlined),
-            label: 'Stock',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_outlined),
-            label: 'Orders',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
-      ),
     );
   }
 }
