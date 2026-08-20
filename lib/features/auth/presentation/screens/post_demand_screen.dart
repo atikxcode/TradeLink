@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/config/supabase_config.dart';
 
 const Color _pdPrimaryTeal = Color(0xFF0F766E);
 const Color _pdActiveCardTeal = Color(0xFFEEF8F6);
@@ -18,6 +20,7 @@ class PostDemandScreen extends StatefulWidget {
 
 class _PostDemandScreenState extends State<PostDemandScreen> {
   static const List<String> _units = ['kg', 'litre', 'pcs'];
+  bool _isSubmitting = false;
 
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
@@ -367,17 +370,74 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Demand posted: ${_productController.text.trim().isEmpty ? 'Product' : _productController.text.trim()}',
+            onPressed: _isSubmitting ? null : () async {
+              final product = _productController.text.trim();
+              final quantityStr = _quantityController.text.trim();
+              final quantity = double.tryParse(quantityStr);
+
+              if (product.isEmpty || quantity == null || quantity <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid product name and quantity.'),
+                    backgroundColor: Colors.redAccent,
                   ),
-                  backgroundColor: _pdPrimaryTeal,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pop(context);
+                );
+                return;
+              }
+
+              setState(() => _isSubmitting = true);
+
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                String? userId = prefs.getString('user_id');
+
+                // If user_id isn't saved, try to fetch the first shop_owner
+                if (userId == null || userId.isEmpty) {
+                  final userRes = await SupabaseConfig.client
+                      .from(SupabaseConfig.tableUsers)
+                      .select('id')
+                      .eq('role', 'shop_owner')
+                      .limit(1);
+                  if ((userRes as List).isNotEmpty) {
+                    userId = userRes[0]['id'];
+                  }
+                }
+
+                if (userId == null) {
+                  throw Exception('Please register or log in first.');
+                }
+
+                await SupabaseConfig.client.from(SupabaseConfig.tableDemands).insert({
+                  'shop_owner_id': userId,
+                  'product_name': product,
+                  'category': _selectedCategory,
+                  'quantity': quantity,
+                  'unit': _selectedUnit,
+                  'notes': _notesController.text.trim(),
+                  'status': 'pending',
+                });
+
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Demand posted: $product ($quantityStr $_selectedUnit)'),
+                    backgroundColor: _pdPrimaryTeal,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                Navigator.pop(context, true);
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to post demand: ${e.toString()}'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              } finally {
+                if (mounted) setState(() => _isSubmitting = false);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: _pdPrimaryTeal,
@@ -387,14 +447,23 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text(
-              'Post demand',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Inter',
-              ),
-            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    'Post demand',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Inter',
+                    ),
+                  ),
           ),
         ),
       ),

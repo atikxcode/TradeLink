@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'notifications_screen.dart';
 import 'post_demand_screen.dart';
@@ -16,10 +18,42 @@ class ShopOwnerHomeScreen extends StatefulWidget {
 
 class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   int _currentIndex = 0;
+  String _businessName = 'My Shop';
+  String _initials = 'SO';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('user_business') ?? prefs.getString('user_name') ?? 'My Shop';
+    
+    // Generate initials
+    final words = name.trim().split(RegExp(r'\s+'));
+    String inits = '';
+    if (words.isNotEmpty && words[0].isNotEmpty) {
+      inits += words[0][0];
+    }
+    if (words.length > 1 && words[1].isNotEmpty) {
+      inits += words[1][0];
+    } else if (words.isNotEmpty && words[0].length > 1) {
+      inits += words[0][1];
+    }
+
+    if (mounted) {
+      setState(() {
+        _businessName = name;
+        _initials = inits.toUpperCase();
+      });
+    }
+  }
 
   static const List<Widget> _tabs = [
-    _ShopOwnerDashboard(),
-    StockScreen(showAddButton: false),
+    ShopOwnerDashboard(),
+    StockScreen(showAddButton: true),
     OrdersScreen(),
     ProfileScreen(),
   ];
@@ -63,10 +97,10 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
               color: const Color(0xFFF0C896),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
-                'RG',
-                style: TextStyle(
+                _initials,
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
@@ -75,22 +109,23 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Good morning',
                   style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Rahim General Store',
-                  style: TextStyle(
+                  _businessName,
+                  style: const TextStyle(
                     fontSize: 20,
                     color: Color(0xFF111827),
                     fontWeight: FontWeight.w700,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -113,27 +148,12 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
                 color: const Color(0xFFEEF0F3),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(
-                    Icons.notifications_outlined,
-                    size: 20,
-                    color: Color(0xFF374151),
-                  ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
+              child: const Center(
+                child: Icon(
+                  Icons.notifications_outlined,
+                  size: 20,
+                  color: Color(0xFF374151),
+                ),
               ),
             ),
           ),
@@ -182,114 +202,263 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   }
 }
 
-class _ShopOwnerDashboard extends StatelessWidget {
-  const _ShopOwnerDashboard();
+class ShopOwnerDashboard extends StatefulWidget {
+  const ShopOwnerDashboard({super.key});
+
+  @override
+  State<ShopOwnerDashboard> createState() => _ShopOwnerDashboardState();
+}
+
+class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
+  bool _isLoading = true;
+  int _demandsCount = 0;
+  int _ordersCount = 0;
+  int _stocksCount = 0;
+  List<Map<String, dynamic>> _postedDemands = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDashboardData();
+  }
+
+  Future<void> _fetchDashboardData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+
+      // 1. Fetch demands for this user (or all if no userId)
+      var demandQuery = SupabaseConfig.client
+          .from(SupabaseConfig.tableDemands)
+          .select('*, users!demands_shop_owner_id_fkey(business_name)')
+          .order('created_at', ascending: false);
+
+      if (userId != null && userId.isNotEmpty) {
+        demandQuery = SupabaseConfig.client
+            .from(SupabaseConfig.tableDemands)
+            .select()
+            .eq('shop_owner_id', userId)
+            .order('created_at', ascending: false);
+      }
+
+      final demands = await demandQuery;
+
+      // 2. Fetch pending orders count
+      int ordersCount = 0;
+      try {
+        var orderQuery = SupabaseConfig.client
+            .from(SupabaseConfig.tableOrders)
+            .select('id')
+            .eq('status', 'pending');
+        if (userId != null && userId.isNotEmpty) {
+          orderQuery = orderQuery.eq('shop_owner_id', userId);
+        }
+        final orders = await orderQuery;
+        ordersCount = (orders as List).length;
+      } catch (_) {}
+
+      // 3. Fetch stocks count
+      int stocksCount = 0;
+      try {
+        var stockQuery = SupabaseConfig.client
+            .from(SupabaseConfig.tableStocks)
+            .select('id');
+        if (userId != null && userId.isNotEmpty) {
+          stockQuery = stockQuery.eq('user_id', userId);
+        }
+        final stocks = await stockQuery;
+        stocksCount = (stocks as List).length;
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _postedDemands = List<Map<String, dynamic>>.from(demands);
+          _demandsCount = _postedDemands.length;
+          _ordersCount = ordersCount;
+          _stocksCount = stocksCount;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      children: [
-        const SizedBox(height: 24),
-        SizedBox(
-          height: 48,
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PostDemandScreen(),
+    return RefreshIndicator(
+      onRefresh: _fetchDashboardData,
+      color: AppColors.primaryTeal,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PostDemandScreen(),
+                  ),
+                );
+                if (result == true || mounted) {
+                  _fetchDashboardData();
+                }
+              },
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text(
+                'Post new demand',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
-              );
-            },
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text(
-              'Post new demand',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryTeal,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryTeal,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 48,
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const TradeLinkAssistantScreen(),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TradeLinkAssistantScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.auto_awesome_rounded, size: 20),
+              label: const Text(
+                'Ask TradeLink Assistant',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
-              );
-            },
-            icon: const Icon(Icons.auto_awesome_rounded, size: 20),
-            label: const Text(
-              'Ask TradeLink Assistant',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
               ),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryTeal,
-              side: BorderSide(color: AppColors.primaryTeal),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryTeal,
+                side: const BorderSide(color: AppColors.primaryTeal),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            _StatCard(number: '6', label: 'New demands'),
-            const SizedBox(width: 12),
-            _StatCard(number: '2', label: 'Pending orders'),
-            const SizedBox(width: 12),
-            _StatCard(number: '18', label: 'Stock items'),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Posted demands',
-              style: TextStyle(
-                fontSize: 18,
-                color: Color(0xFF111827),
-                fontWeight: FontWeight.w700,
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              _StatCard(number: '$_demandsCount', label: 'My demands'),
+              const SizedBox(width: 12),
+              _StatCard(number: '$_ordersCount', label: 'Pending orders'),
+              const SizedBox(width: 12),
+              _StatCard(number: '$_stocksCount', label: 'Stock items'),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Posted demands',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Color(0xFF111827),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _DemandStatusCard(
-          title: 'Rice — Basmati, 50kg',
-          subtitle: 'Accepted by Manik Wholesale',
-          status: 'Accepted',
-          statusColor: AppColors.accepted,
-        ),
-        _DemandStatusCard(
-          title: 'Soybean Oil, 20L',
-          subtitle: 'Delivered from New Bazar',
-          status: 'Delivered',
-          statusColor: AppColors.delivered,
-        ),
-        const SizedBox(height: 16),
-      ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(color: AppColors.primaryTeal),
+              ),
+            )
+          else if (_postedDemands.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.post_add_rounded,
+                      color: AppColors.primaryTeal,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No demands posted yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Tap "Post new demand" above to broadcast what you need to nearby suppliers.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ..._postedDemands.map((demand) {
+              final productName = demand['product_name'] ?? 'Product';
+              final quantity = demand['quantity']?.toString() ?? '1';
+              final unit = demand['unit'] ?? 'kg';
+              final status = demand['status']?.toString().toUpperCase() ?? 'PENDING';
+              final createdAt = demand['created_at']?.toString() ?? '';
+
+              Color statusColor = AppColors.pending;
+              if (status == 'ACCEPTED') statusColor = AppColors.accepted;
+              if (status == 'DELIVERED') statusColor = AppColors.delivered;
+              if (status == 'CANCELLED') statusColor = AppColors.cancelled;
+
+              return _DemandStatusCard(
+                title: '$productName, $quantity $unit',
+                subtitle: 'Status: $status ${createdAt.length >= 10 ? "· ${createdAt.substring(0, 10)}" : ""}',
+                status: status,
+                statusColor: statusColor,
+              );
+            }),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }
@@ -325,7 +494,7 @@ class _StatCard extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 color: Color(0xFF6B7280),
               ),
             ),
