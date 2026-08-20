@@ -5,6 +5,7 @@ import 'post_demand_screen.dart';
 import 'stock_screen.dart';
 import 'orders_screen.dart';
 import 'profile_screen.dart';
+import 'tradelink_assistant_screen.dart';
 
 class ShopOwnerHomeScreen extends StatefulWidget {
   const ShopOwnerHomeScreen({super.key});
@@ -214,6 +215,36 @@ class _ShopOwnerDashboard extends StatelessWidget {
               backgroundColor: AppColors.primaryTeal,
               foregroundColor: Colors.white,
               elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 48,
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TradeLinkAssistantScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.auto_awesome_rounded, size: 20),
+            label: const Text(
+              'Ask TradeLink Assistant',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primaryTeal,
+              side: BorderSide(color: AppColors.primaryTeal),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
