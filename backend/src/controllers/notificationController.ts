@@ -9,8 +9,7 @@ import {
 export const getNotificationsHandler = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
-    const role = req.role ?? 'stockholder';
-    const notifications = await listNotifications(userId, role);
+    const notifications = await listNotifications(userId);
     res.json({ success: true, data: notifications });
   },
 );
@@ -18,8 +17,7 @@ export const getNotificationsHandler = asyncHandler(
 export const markReadHandler = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
-    const role = req.role ?? 'stockholder';
-    const result = await markAllRead(userId, role);
+    const result = await markAllRead(userId);
     res.json({ success: true, data: result });
   },
 );

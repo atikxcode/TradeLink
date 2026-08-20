@@ -3,14 +3,14 @@ import type { CreateStockPayload, StockItem } from '../types/index.js';
 
 export interface StockRow {
   id: string;
-  stockholder_id: string;
+  user_id: string;
+  product_id: string | null;
   category: string;
   product_name: string;
-  quantity_available: number;
+  quantity: number;
   unit: string;
   price_per_unit: number;
-  service_radius_km: number;
-  is_active: boolean;
+  is_available: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -18,47 +18,46 @@ export interface StockRow {
 export function mapStockRow(row: StockRow): StockItem {
   return {
     id: row.id,
-    stockholderId: row.stockholder_id,
+    userId: row.user_id,
+    productId: row.product_id,
     category: row.category,
     productName: row.product_name,
-    quantityAvailable: row.quantity_available,
+    quantity: row.quantity,
     unit: row.unit,
     pricePerUnit: row.price_per_unit,
-    serviceRadiusKm: row.service_radius_km,
-    isActive: row.is_active,
+    isAvailable: row.is_available,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
 
 export async function createStock(
-  stockholderId: string,
+  userId: string,
   payload: CreateStockPayload,
 ): Promise<StockItem> {
   const { rows } = await db.query<StockRow>(
-    `INSERT INTO stock_items
-       (stockholder_id, category, product_name, quantity_available, unit, price_per_unit, service_radius_km)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO stocks
+       (user_id, product_name, category, quantity, unit, price_per_unit, is_available)
+     VALUES ($1, $2, $3, $4, $5, $6, true)
      RETURNING *`,
     [
-      stockholderId,
-      payload.category,
+      userId,
       payload.productName,
+      payload.category,
       payload.quantity,
       payload.unit,
       payload.pricePerUnit,
-      payload.serviceRadiusKm ?? 10,
     ],
   );
   return mapStockRow(rows[0]);
 }
 
-export async function countActiveStock(stockholderId: string): Promise<number> {
+export async function countActiveStock(userId: string): Promise<number> {
   const { rows } = await db.query<{ count: string }>(
     `SELECT count(*)::text AS count
-     FROM stock_items
-     WHERE stockholder_id = $1 AND is_active = true`,
-    [stockholderId],
+     FROM stocks
+     WHERE user_id = $1 AND is_available = true`,
+    [userId],
   );
   return Number(rows[0]?.count ?? 0);
 }

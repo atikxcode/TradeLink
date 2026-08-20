@@ -9,7 +9,6 @@ export const createStockSchema = z.object({
   quantity: z.number().positive().max(1_000_000),
   unit: z.enum(UNITS),
   pricePerUnit: z.number().nonnegative().max(1_000_000),
-  serviceRadiusKm: z.number().int().nonnegative().max(100).optional(),
 });
 
 export type CreateStockInput = z.infer<typeof createStockSchema>;

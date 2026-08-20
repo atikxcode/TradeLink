@@ -9,21 +9,21 @@ import {
   getNotificationsHandler,
   markReadHandler,
 } from '../controllers/notificationController.js';
-import { requireStockholder } from '../middleware/auth.js';
+import { requireSupplier } from '../middleware/auth.js';
 
 const router = Router();
 
-// Screen 09 — Publish Stock (stockholder only)
-router.post('/stockholders/stock', requireStockholder, publishStock);
+// Publish Stock (supplier only)
+router.post('/suppliers/stock', requireSupplier, publishStock);
 
-// Screen 08 — Home Feed & Stats (stockholder only)
-router.get('/stockholders/home-stats', requireStockholder, getHomeStatsHandler);
+// Home Feed & Stats (supplier only)
+router.get('/suppliers/home-stats', requireSupplier, getHomeStatsHandler);
 
-// Screen 10 — Accept / Decline demand (stockholder only)
-router.post('/demands/:id/accept', requireStockholder, acceptDemandHandler);
-router.post('/demands/:id/decline', requireStockholder, declineDemandHandler);
+// Accept / Decline demand (supplier only)
+router.post('/demands/:id/accept', requireSupplier, acceptDemandHandler);
+router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 
-// Screen 12 — Notifications (any authenticated user)
+// Notifications (any authenticated user)
 router.get('/notifications', getNotificationsHandler);
 router.patch('/notifications/mark-read', markReadHandler);
 
