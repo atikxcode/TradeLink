@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../shopowner/presentation/screens/shopowner_home_screen.dart';
-import '../../../stockholder/presentation/screens/stockholder_home_screen.dart';
 import 'register_screen.dart';
 import 'shop_owner_home_screen.dart';
 import 'stockholder_home_screen.dart';
