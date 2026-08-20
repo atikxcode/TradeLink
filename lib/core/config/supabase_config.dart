@@ -1,10 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Configuration helper for Supabase (PostgreSQL) initialization & access
 class SupabaseConfig {
-  // Replace these with your actual Supabase URL and Anon Key from Supabase Dashboard
-  static const String supabaseUrl = 'https://YOUR_SUPABASE_PROJECT_ID.supabase.co';
-  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
+  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
   /// Initialize Supabase Flutter SDK
   static Future<void> initialize() async {
