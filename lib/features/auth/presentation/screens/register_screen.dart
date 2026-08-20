@@ -5,7 +5,7 @@ import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_categories.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'shop_owner_home_screen.dart';
-import 'stockholder_home_screen.dart';
+import 'stockholder_otp.dart';
 import '../widgets/map_location_picker_dialog.dart';
 import 'login_screen.dart';
 
@@ -132,7 +132,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => const StockholderHomeScreen(),
+            builder: (context) => StockholderOtpScreen(
+              phoneNumber: phone,
+            ),
           ),
           (route) => false,
         );
