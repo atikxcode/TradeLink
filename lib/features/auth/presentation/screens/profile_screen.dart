@@ -54,7 +54,7 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 4),
           const Center(
             child: Text(
-              'Stockholder / Wholesaler',
+              'Supplier / Wholesaler',
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
           ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_categories.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'shop_owner_home_screen.dart';
@@ -22,6 +24,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   late UserRole _selectedRole;
   final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
   // Input Controllers
   final TextEditingController _nameController = TextEditingController();
@@ -29,7 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _businessNameController = TextEditingController();
   
-  // Wholesaler / Stockholder Additional Controllers
+  // Wholesaler / Supplier Additional Controllers
   final TextEditingController _tradeLicenseController = TextEditingController();
   final TextEditingController _minOrderController = TextEditingController();
   final TextEditingController _supplyRadiusController = TextEditingController();
@@ -57,29 +60,103 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _handleRegister() {
-    if (_selectedRole == UserRole.shopOwner) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const ShopOwnerHomeScreen(),
+  Future<void> _handleRegister() async {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text.trim();
+    final businessName = _businessNameController.text.trim();
+
+    if (name.isEmpty || phone.isEmpty || password.isEmpty || businessName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in all required fields.'),
+          backgroundColor: AppColors.cancelled,
         ),
-        (route) => false,
       );
-    } else {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const StockholderHomeScreen(),
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final roleStr = _selectedRole == UserRole.shopOwner ? 'shop_owner' : 'supplier';
+      
+      // Parse min order value
+      final minOrder = double.tryParse(_minOrderController.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+
+      // Insert into Supabase users table and retrieve the record
+      final inserted = await SupabaseConfig.client.from(SupabaseConfig.tableUsers).insert({
+        'role': roleStr,
+        'full_name': name,
+        'phone_number': phone,
+        'business_name': businessName,
+        'category': _selectedCategory,
+        'trade_license': _selectedRole == UserRole.supplier ? _tradeLicenseController.text.trim() : null,
+        'min_order_value': _selectedRole == UserRole.supplier ? minOrder : 0.0,
+        'supply_radius': _selectedRole == UserRole.supplier ? _supplyRadiusController.text.trim() : null,
+        'latitude': _selectedLocation.latitude,
+        'longitude': _selectedLocation.longitude,
+        'address': _locationStatus,
+      }).select().single();
+
+      // Save user session in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_id', inserted['id']?.toString() ?? '');
+      await prefs.setString('user_name', inserted['full_name']?.toString() ?? name);
+      await prefs.setString('user_business', inserted['business_name']?.toString() ?? businessName);
+      await prefs.setString('user_role', inserted['role']?.toString() ?? roleStr);
+      await prefs.setString('user_phone', inserted['phone_number']?.toString() ?? phone);
+      await prefs.setString('user_category', inserted['category']?.toString() ?? _selectedCategory);
+      await prefs.setString('user_address', inserted['address']?.toString() ?? _locationStatus);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Account created successfully as ${_selectedRole == UserRole.shopOwner ? "Shop Owner" : "Supplier"}!'),
+          backgroundColor: AppColors.primaryTeal,
         ),
-        (route) => false,
       );
+
+      if (_selectedRole == UserRole.shopOwner) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ShopOwnerHomeScreen(),
+          ),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const StockholderHomeScreen(),
+          ),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Registration error: ${e.toString()}'),
+          backgroundColor: AppColors.cancelled,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isStockholder = _selectedRole == UserRole.stockholder;
+    final isSupplier = _selectedRole == UserRole.supplier;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -203,12 +280,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                             // Shop Name / Warehouse Name
                             _buildLabel(
-                              isStockholder ? 'Warehouse / Business name' : 'Shop name',
+                              isSupplier ? 'Warehouse / Business name' : 'Shop name',
                             ),
                             const SizedBox(height: 8),
                             _buildTextField(
                               controller: _businessNameController,
-                              hintText: isStockholder
+                              hintText: isSupplier
                                   ? 'Rahim Wholesale Depot'
                                   : 'Rahim General Store',
                             ),
@@ -256,8 +333,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
 
-                            // Wholesaler / Stockholder Additional Fields
-                            if (isStockholder) ...[
+                            // Wholesaler / Supplier Additional Fields
+                            if (isSupplier) ...[
                               const SizedBox(height: 16),
                               _buildLabel('Trade License / Business Reg. No.'),
                               const SizedBox(height: 8),
@@ -305,7 +382,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                             // Location Field Map Box
                             _buildLabel(
-                              isStockholder ? 'Warehouse location' : 'Shop location',
+                              isSupplier ? 'Warehouse location' : 'Shop location',
                             ),
                             const SizedBox(height: 8),
                             _buildMapLocationPicker(),
@@ -316,7 +393,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             SizedBox(
                               height: 52,
                               child: ElevatedButton(
-                                onPressed: _handleRegister,
+                                onPressed: _isLoading ? null : _handleRegister,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primaryTeal,
                                   foregroundColor: Colors.white,
@@ -325,13 +402,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                                child: const Text(
-                                  'Create account',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Create account',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                               ),
                             ),
                           ],
@@ -518,11 +604,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           Expanded(
             child: _RoleTabItem(
-              title: 'Stockholder',
-              isSelected: _selectedRole == UserRole.stockholder,
+              title: 'Supplier',
+              isSelected: _selectedRole == UserRole.supplier,
               onTap: () {
                 setState(() {
-                  _selectedRole = UserRole.stockholder;
+                  _selectedRole = UserRole.supplier;
                 });
               },
             ),

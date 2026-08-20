@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'register_screen.dart';
 import 'shop_owner_home_screen.dart';
 import 'stockholder_home_screen.dart';
 
-enum UserRole { shopOwner, stockholder }
+enum UserRole { shopOwner, supplier }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -26,15 +29,16 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    final roleName = _selectedRole == UserRole.shopOwner ? 'Shop Owner' : 'Stockholder';
+  Future<void> _handleLogin() async {
+    final roleStr = _selectedRole == UserRole.shopOwner ? 'shop_owner' : 'supplier';
+    final roleName = _selectedRole == UserRole.shopOwner ? 'Shop Owner' : 'Supplier';
     final phone = _phoneController.text.trim();
-    final password = _passwordController.text;
+    final password = _passwordController.text.trim();
 
-    if (phone != 'a' || password != '1') {
+    if (phone.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Invalid credentials. Use a / 1 to log in.'),
+        const SnackBar(
+          content: Text('Please enter both phone number and password.'),
           backgroundColor: AppColors.cancelled,
           behavior: SnackBarBehavior.floating,
         ),
@@ -42,21 +46,70 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Logging in as $roleName ($phone)...'),
-        backgroundColor: AppColors.primaryTeal,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    setState(() => _isLoading = true);
 
-    final Widget homeScreen = _selectedRole == UserRole.stockholder
-        ? const StockholderHomeScreen()
-        : const ShopOwnerHomeScreen();
+    try {
+      // Query Supabase for the user matching this phone number and role
+      final users = await SupabaseConfig.client
+          .from(SupabaseConfig.tableUsers)
+          .select()
+          .eq('phone_number', phone)
+          .eq('role', roleStr)
+          .limit(1);
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => homeScreen),
-    );
+      if ((users as List).isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No $roleName account found for $phone. Please register.'),
+            backgroundColor: AppColors.cancelled,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final user = users[0];
+
+      // Save user session in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_id', user['id']?.toString() ?? '');
+      await prefs.setString('user_name', user['full_name']?.toString() ?? '');
+      await prefs.setString('user_business', user['business_name']?.toString() ?? '');
+      await prefs.setString('user_role', user['role']?.toString() ?? roleStr);
+      await prefs.setString('user_phone', user['phone_number']?.toString() ?? phone);
+      await prefs.setString('user_category', user['category']?.toString() ?? 'Grocery');
+      await prefs.setString('user_address', user['address']?.toString() ?? '');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Welcome back, ${user['business_name'] ?? user['full_name']}!'),
+          backgroundColor: AppColors.primaryTeal,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      final Widget homeScreen = _selectedRole == UserRole.supplier
+          ? const StockholderHomeScreen()
+          : const ShopOwnerHomeScreen();
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => homeScreen),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login error: ${e.toString()}'),
+          backgroundColor: AppColors.cancelled,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -299,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           SizedBox(
                             height: 52,
                             child: ElevatedButton(
-                              onPressed: _handleLogin,
+                              onPressed: _isLoading ? null : _handleLogin,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryTeal,
                                 foregroundColor: Colors.white,
@@ -308,13 +361,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: const Text(
-                                'Log in',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Log in',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                             ),
                           ),
 
@@ -368,7 +430,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Builds the "Shop Owner" vs "Stockholder" toggle bar
+  /// Builds the "Shop Owner" vs "Supplier" toggle bar
   Widget _buildRoleToggle() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -390,14 +452,14 @@ class _LoginScreenState extends State<LoginScreen> {
               },
             ),
           ),
-          // Stockholder Option
+          // Supplier Option
           Expanded(
             child: _RoleTabItem(
-              title: 'Stockholder',
-              isSelected: _selectedRole == UserRole.stockholder,
+              title: 'Supplier',
+              isSelected: _selectedRole == UserRole.supplier,
               onTap: () {
                 setState(() {
-                  _selectedRole = UserRole.stockholder;
+                  _selectedRole = UserRole.supplier;
                 });
               },
             ),
