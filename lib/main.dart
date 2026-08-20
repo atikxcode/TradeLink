@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'core/config/firebase_config.dart';
 import 'core/config/supabase_config.dart';
 import 'core/constants/app_colors.dart';
-import 'features/auth/presentation/screens/stockholder_home_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +28,7 @@ class TradelinkApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const StockholderHomeScreen(),
+      home: const LoginScreen(),
     );
   }
 }

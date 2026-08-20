@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../core/constants/app_categories.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../shopowner/presentation/screens/shopowner_home_screen.dart';
-import '../../../stockholder/presentation/screens/stockholder_home_screen.dart';
+import 'shop_owner_home_screen.dart';
+import 'stockholder_home_screen.dart';
 import '../widgets/map_location_picker_dialog.dart';
 import 'login_screen.dart';
 
@@ -62,7 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => const ShopownerHomeScreen(),
+          builder: (context) => const ShopOwnerHomeScreen(),
         ),
         (route) => false,
       );
