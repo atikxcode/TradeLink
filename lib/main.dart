@@ -4,8 +4,11 @@ import 'core/config/supabase_config.dart';
 import 'core/constants/app_colors.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
 
   // Initialize Tech Stack: Firebase Auth & Supabase (PostgreSQL)
   await FirebaseConfig.initialize();
