@@ -5,10 +5,10 @@ import { parseId } from '../middleware/validation.js';
 import { acceptDemand, declineDemand } from '../services/demandService.js';
 import { db } from '../db/pool.js';
 
-async function getStockholderBusinessName(stockholderId: string): Promise<string> {
+async function getSupplierBusinessName(userId: string): Promise<string> {
   const { rows } = await db.query<{ business_name: string }>(
-    `SELECT business_name FROM stockholders WHERE stockholder_id = $1`,
-    [stockholderId],
+    `SELECT business_name FROM users WHERE id = $1`,
+    [userId],
   );
   return rows[0]?.business_name ?? 'Your supplier';
 }
@@ -16,10 +16,10 @@ async function getStockholderBusinessName(stockholderId: string): Promise<string
 export const acceptDemandHandler = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const demandId = parseId(String(req.params.id), 'demand id');
-    const stockholderId = req.userId!;
-    const businessName = await getStockholderBusinessName(stockholderId);
+    const supplierId = req.userId!;
+    const businessName = await getSupplierBusinessName(supplierId);
 
-    const result = await acceptDemand(demandId, stockholderId, businessName);
+    const result = await acceptDemand(demandId, supplierId, businessName);
     res.json({ success: true, data: result });
   },
 );

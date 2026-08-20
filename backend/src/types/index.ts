@@ -1,16 +1,18 @@
 // Shared API DTOs. Field names mirror the Flutter client models so the
 // frontend can deserialize responses without mapping.
 
+export type UserRole = 'shop_owner' | 'supplier';
+
 export interface StockItem {
   id: string;
-  stockholderId: string;
+  userId: string;
+  productId: string | null;
   category: string;
   productName: string;
-  quantityAvailable: number;
+  quantity: number;
   unit: string;
   pricePerUnit: number;
-  serviceRadiusKm: number;
-  isActive: boolean;
+  isAvailable: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,43 +21,46 @@ export interface NearbyDemand {
   id: string;
   shopOwnerId: string;
   productName: string;
+  category: string;
   quantity: number;
   unit: string;
-  deliveryLocation: string | null;
   notes: string | null;
   status: DemandStatus;
-  distanceKm: number | null;
   createdAt: string;
 }
 
 export type DemandStatus =
   | 'pending'
   | 'accepted'
-  | 'declined'
-  | 'completed';
+  | 'delivered'
+  | 'cancelled';
 
 export interface OrderItem {
   id: string;
-  demandId: string;
-  stockholderId: string;
+  demandId: string | null;
   shopOwnerId: string;
-  deliveryOtp: string;
+  supplierId: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  totalAmount: number;
   status: OrderStatus;
+  deliveryAddress: string | null;
   createdAt: string;
 }
 
 export type OrderStatus =
+  | 'pending'
   | 'accepted'
-  | 'out_for_delivery'
+  | 'in_transit'
   | 'delivered'
   | 'cancelled';
 
 export interface NotificationItem {
   id: string;
-  recipientId: string;
-  recipientRole: 'stockholder' | 'shop_owner';
+  userId: string;
   title: string;
-  message: string;
+  subtitle: string;
   type: string;
   isRead: boolean;
   createdAt: string;
@@ -69,7 +74,6 @@ export interface CreateStockPayload {
   quantity: number;
   unit: string;
   pricePerUnit: number;
-  serviceRadiusKm?: number;
 }
 
 export interface HomeStatsResponse {
@@ -81,6 +85,7 @@ export interface HomeStatsResponse {
 
 export interface AcceptDemandResponse {
   order: OrderItem;
+  deliveryOtp: string;
   demandId: string;
   message: string;
 }

@@ -1,20 +1,21 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { env } from '../config/env.js';
+import { db } from '../db/pool.js';
+import type { UserRole } from '../types/index.js';
 
 export interface AuthRequest extends Request {
   userId?: string;
-  role?: 'stockholder' | 'shop_owner';
+  role?: UserRole;
 }
-
-const ROLE_DELIMITER = '::';
 
 /**
  * Authenticates the caller and attaches `userId` + `role` to the request.
  *
- * - Supabase mode: expects `Authorization: Bearer <JWT>` and verifies the
- *   signature with the Supabase JWT secret, then derives the role from the
- *   token's `app_metadata.role` or `user_metadata.role`.
+ * - Supabase mode: expects `Authorization: Bearer <JWT>`, verifies the
+ *   signature with the Supabase JWT secret, then resolves the public
+ *   `users.id` from the token's `sub` (auth.users.id) via the `auth_id`
+ *   column and derives the role from the `users.role` column.
  * - Dev mode: accepts a plain `X-User-Id` header (no DB / auth required).
  */
 export function requireAuth(
@@ -28,9 +29,9 @@ export function requireAuth(
       res.status(401).json({ error: 'X-User-Id header required in demo mode' });
       return;
     }
-    const [userId, role] = headerId.split(ROLE_DELIMITER);
+    const [userId, role] = headerId.split('::');
     req.userId = userId;
-    req.role = role === 'shop_owner' ? 'shop_owner' : 'stockholder';
+    req.role = role === 'shop_owner' ? 'shop_owner' : 'supplier';
     next();
     return;
   }
@@ -41,28 +42,53 @@ export function requireAuth(
     return;
   }
 
+  let sub: string;
   try {
     const payload = verifyJwt(token);
-    req.userId = payload.sub as string;
-    const meta = payload.app_metadata ?? payload.user_metadata ?? {};
-    req.role =
-      meta.role === 'shop_owner' || meta.role === 'stockholder'
-        ? meta.role
-        : 'stockholder';
-    next();
+    sub = payload.sub as string;
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
+    return;
   }
+
+  void resolveUserIdAndRole(sub)
+    .then((resolved) => {
+      if (!resolved) {
+        res.status(401).json({ error: 'No profile found for this account' });
+        return;
+      }
+      req.userId = resolved.userId;
+      req.role = resolved.role;
+      next();
+    })
+    .catch(() => {
+      res.status(500).json({ error: 'Failed to load profile' });
+    });
 }
 
-/** Require the authenticated user to be a stockholder. */
-export function requireStockholder(
+async function resolveUserIdAndRole(
+  authId: string,
+): Promise<{ userId: string; role: UserRole } | null> {
+  const { rows } = await db.query<{ id: string; role: UserRole }>(
+    `SELECT id, role FROM users WHERE auth_id = $1 LIMIT 1`,
+    [authId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    userId: row.id,
+    role: row.role === 'shop_owner' ? 'shop_owner' : 'supplier',
+  };
+}
+
+/** Require the authenticated user to be a supplier. */
+export function requireSupplier(
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ): void {
-  if (req.role !== 'stockholder') {
-    res.status(403).json({ error: 'Stockholder role required' });
+  if (req.role !== 'supplier') {
+    res.status(403).json({ error: 'Supplier role required' });
     return;
   }
   next();
@@ -70,8 +96,6 @@ export function requireStockholder(
 
 interface JwtPayload {
   sub?: string;
-  app_metadata?: { role?: string };
-  user_metadata?: { role?: string };
 }
 
 function verifyJwt(token: string): JwtPayload {
