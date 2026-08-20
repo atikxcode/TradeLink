@@ -29,6 +29,18 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() {
     final roleName = _selectedRole == UserRole.shopOwner ? 'Shop Owner' : 'Stockholder';
     final phone = _phoneController.text.trim();
+    final password = _passwordController.text;
+
+    if (phone != 'a' || password != '1') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Invalid credentials. Use a / 1 to log in.'),
+          backgroundColor: AppColors.cancelled,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
