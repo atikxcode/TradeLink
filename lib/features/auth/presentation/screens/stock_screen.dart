@@ -3,7 +3,9 @@ import '../../../../core/constants/app_colors.dart';
 import 'add_stock_screen.dart';
 
 class StockScreen extends StatelessWidget {
-  const StockScreen({super.key});
+  final bool showAddButton;
+
+  const StockScreen({super.key, this.showAddButton = true});
 
   @override
   Widget build(BuildContext context) {
@@ -22,27 +24,28 @@ class StockScreen extends StatelessWidget {
                   color: AppColors.textPrimary,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddStockScreen(),
+              if (showAddButton)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddStockScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add stock'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryTeal,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add stock'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryTeal,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),

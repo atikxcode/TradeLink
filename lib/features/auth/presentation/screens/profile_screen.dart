@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -61,6 +62,34 @@ class ProfileScreen extends StatelessWidget {
           _ProfileTile(icon: Icons.phone_outlined, label: 'Phone', value: '+880 1XXX-XXXXXX'),
           _ProfileTile(icon: Icons.store_outlined, label: 'Warehouse', value: 'Mirpur-10, Dhaka'),
           _ProfileTile(icon: Icons.location_on_outlined, label: 'Location', value: '23.81° N, 90.36° E'),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (route) => false,
+                );
+              },
+              icon: const Icon(Icons.logout_rounded, size: 20),
+              label: const Text(
+                'Log out',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.cancelled,
+                side: BorderSide(color: AppColors.cancelled.withValues(alpha: 0.4)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

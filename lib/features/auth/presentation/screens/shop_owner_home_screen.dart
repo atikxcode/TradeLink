@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'notifications_screen.dart';
+import 'post_demand_screen.dart';
 import 'stock_screen.dart';
 import 'orders_screen.dart';
 import 'profile_screen.dart';
@@ -17,7 +18,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
 
   static const List<Widget> _tabs = [
     _ShopOwnerDashboard(),
-    StockScreen(),
+    StockScreen(showAddButton: false),
     OrdersScreen(),
     ProfileScreen(),
   ];
@@ -188,6 +189,37 @@ class _ShopOwnerDashboard extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 48,
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PostDemandScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text(
+              'Post new demand',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
         Row(
           children: [
