@@ -1,60 +1,127 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 
-class OrdersScreen extends StatelessWidget {
+class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
+
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOrders();
+  }
+
+  Future<void> _fetchOrders() async {
+    final data = await ApiService.get('/orders');
+    if (data != null && mounted) {
+      setState(() {
+        _orders = (data as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        _isLoading = false;
+      });
+    } else if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        children: [
-          const Text(
-            'My Orders',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)))
+          : RefreshIndicator(
+              onRefresh: _fetchOrders,
+              color: const Color(0xFF0F5C4F),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                children: [
+                  const Text(
+                    'My Orders',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_orders.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'No orders yet',
+                          style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._orders.map((order) => _OrderItem(
+                          product: order['productName'] ?? 'Unknown',
+                          quantity: '${order['quantity'] ?? 0} ${order['unit'] ?? ''}',
+                          totalAmount: order['totalAmount'] ?? 0,
+                          status: order['status'] ?? 'pending',
+                        )),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _OrderItem(
-            product: 'Rice — Basmati, 50kg',
-            customer: 'Rahim General Store',
-            status: 'Pending',
-            statusColor: AppColors.pending,
-          ),
-          _OrderItem(
-            product: 'Soybean Oil, 20L',
-            customer: 'New Bazar Store',
-            status: 'Accepted',
-            statusColor: AppColors.accepted,
-          ),
-          _OrderItem(
-            product: 'Sugar, 30kg',
-            customer: 'Alauddin Traders',
-            status: 'Delivered',
-            statusColor: AppColors.delivered,
-          ),
-        ],
-      ),
     );
   }
 }
 
 class _OrderItem extends StatelessWidget {
   final String product;
-  final String customer;
+  final String quantity;
+  final dynamic totalAmount;
   final String status;
-  final Color statusColor;
 
   const _OrderItem({
     required this.product,
-    required this.customer,
+    required this.quantity,
+    required this.totalAmount,
     required this.status,
-    required this.statusColor,
   });
+
+  Color get _statusColor {
+    switch (status) {
+      case 'accepted':
+        return AppColors.accepted;
+      case 'in_transit':
+        return const Color(0xFF3B82F6);
+      case 'delivered':
+        return AppColors.delivered;
+      case 'cancelled':
+        return AppColors.cancelled;
+      default:
+        return AppColors.pending;
+    }
+  }
+
+  String get _statusLabel {
+    switch (status) {
+      case 'accepted':
+        return 'Accepted';
+      case 'in_transit':
+        return 'In Transit';
+      case 'delivered':
+        return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return 'Pending';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +141,7 @@ class _OrderItem extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  product,
+                  '$product ($quantity)',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -86,15 +153,15 @@ class _OrderItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
+                  color: _statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  status,
+                  _statusLabel,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: statusColor,
+                    color: _statusColor,
                   ),
                 ),
               ),
@@ -102,7 +169,7 @@ class _OrderItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            customer,
+            'Total: ৳${totalAmount.toStringAsFixed(2)}',
             style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,

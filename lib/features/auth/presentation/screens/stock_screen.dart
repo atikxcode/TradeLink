@@ -1,80 +1,123 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import 'add_stock_screen.dart';
 
-class StockScreen extends StatelessWidget {
+class StockScreen extends StatefulWidget {
   final bool showAddButton;
 
   const StockScreen({super.key, this.showAddButton = true});
 
   @override
+  State<StockScreen> createState() => _StockScreenState();
+}
+
+class _StockScreenState extends State<StockScreen> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _stocks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStocks();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fetchStocks();
+  }
+
+  Future<void> _fetchStocks() async {
+    debugPrint('[StockScreen] _fetchStocks called');
+    final data = await ApiService.get('/suppliers/stock');
+    debugPrint('[StockScreen] data=$data');
+    if (data != null && mounted) {
+      setState(() {
+        _stocks = (data as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        _isLoading = false;
+      });
+    } else if (mounted) {
+      setState(() {
+        _stocks = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'My Stock',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              if (showAddButton)
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AddStockScreen(),
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)))
+          : RefreshIndicator(
+              onRefresh: _fetchStocks,
+              color: const Color(0xFF0F5C4F),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'My Stock',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Add stock'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryTeal,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                      if (widget.showAddButton)
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AddStockScreen(),
+                              ),
+                            );
+                            _fetchStocks();
+                          },
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Add stock'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryTeal,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _StockItem(
-            name: 'Basmati Rice',
-            quantity: '50 kg',
-            price: '৳ 1,450 / 50kg',
-            icon: Icons.rice_bowl,
-          ),
-          _StockItem(
-            name: 'Soybean Oil',
-            quantity: '20 L',
-            price: '৳ 1,800 / 20L',
-            icon: Icons.local_drink,
-          ),
-          _StockItem(
-            name: 'Sugar',
-            quantity: '30 kg',
-            price: '৳ 780 / 30kg',
-            icon: Icons.cookie,
-          ),
-          _StockItem(
-            name: 'Flour (Maida)',
-            quantity: '40 kg',
-            price: '৳ 620 / 40kg',
-            icon: Icons.cake,
-          ),
-        ],
-      ),
+                  const SizedBox(height: 16),
+                  if (_stocks.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.inputBorder),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'No stock items yet. Tap "Add stock" to get started.',
+                          style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._stocks.map((stock) => _StockItem(
+                          name: stock['customProductName'] ?? stock['name'] ?? 'Unknown',
+                          quantity: '${stock['quantityAvailable'] ?? stock['quantity'] ?? 0} ${stock['unit'] ?? ''}',
+                          price: '৳${stock['pricePerUnit'] ?? stock['price_per_unit'] ?? 0} / ${stock['unit'] ?? ''}',
+                          category: stock['category'] ?? '',
+                        )),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -83,14 +126,29 @@ class _StockItem extends StatelessWidget {
   final String name;
   final String quantity;
   final String price;
-  final IconData icon;
+  final String category;
 
   const _StockItem({
     required this.name,
     required this.quantity,
     required this.price,
-    required this.icon,
+    required this.category,
   });
+
+  IconData get _icon {
+    switch (category.toLowerCase()) {
+      case 'grocery':
+        return Icons.rice_bowl;
+      case 'pharmacy':
+        return Icons.local_pharmacy;
+      case 'hardware':
+        return Icons.hardware;
+      case 'stationery':
+        return Icons.edit_note;
+      default:
+        return Icons.inventory_2;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +169,7 @@ class _StockItem extends StatelessWidget {
               color: AppColors.primaryTealLight,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: AppColors.primaryTeal, size: 24),
+            child: Icon(_icon, color: AppColors.primaryTeal, size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(

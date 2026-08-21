@@ -1,9 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'login_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _userName = '';
+  String _businessName = '';
+  String _role = '';
+  String _phone = '';
+  String _address = '';
+  String _category = '';
+  String _initials = 'U';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('user_name') ?? '';
+    final business = prefs.getString('user_business') ?? '';
+    final role = prefs.getString('user_role') ?? '';
+    final phone = prefs.getString('user_phone') ?? '';
+    final address = prefs.getString('user_address') ?? '';
+    final category = prefs.getString('user_category') ?? '';
+
+    final displayName = business.isNotEmpty ? business : name;
+    String initials = 'U';
+    if (displayName.isNotEmpty) {
+      final words = displayName.trim().split(RegExp(r'\s+'));
+      initials = words.length >= 2
+          ? '${words[0][0]}${words[1][0]}'.toUpperCase()
+          : displayName.substring(0, displayName.length.clamp(0, 2)).toUpperCase();
+    }
+
+    setState(() {
+      _userName = name;
+      _businessName = business;
+      _role = role == 'supplier' ? 'Supplier / Wholesaler' : 'Shop Owner';
+      _phone = phone;
+      _address = address;
+      _category = category;
+      _initials = initials;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +77,10 @@ class ProfileScreen extends StatelessWidget {
                 color: const Color(0xFFF0C896),
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
-                  'MW',
-                  style: TextStyle(
+                  _initials,
+                  style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -41,10 +90,10 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Center(
+          Center(
             child: Text(
-              'Manik Wholesale',
-              style: TextStyle(
+              _businessName.isNotEmpty ? _businessName : (_userName.isNotEmpty ? _userName : 'User'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
@@ -52,26 +101,44 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const Center(
+          Center(
             child: Text(
-              'Supplier / Wholesaler',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              _role,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
           ),
           const SizedBox(height: 24),
-          _ProfileTile(icon: Icons.phone_outlined, label: 'Phone', value: '+880 1XXX-XXXXXX'),
-          _ProfileTile(icon: Icons.store_outlined, label: 'Warehouse', value: 'Mirpur-10, Dhaka'),
-          _ProfileTile(icon: Icons.location_on_outlined, label: 'Location', value: '23.81° N, 90.36° E'),
+          _ProfileTile(
+            icon: Icons.phone_outlined,
+            label: 'Phone',
+            value: _phone.isNotEmpty ? _phone : 'Not set',
+          ),
+          if (_address.isNotEmpty)
+            _ProfileTile(
+              icon: Icons.store_outlined,
+              label: 'Address',
+              value: _address,
+            ),
+          if (_category.isNotEmpty)
+            _ProfileTile(
+              icon: Icons.category_outlined,
+              label: 'Category',
+              value: _category,
+            ),
           const SizedBox(height: 8),
           SizedBox(
             height: 48,
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (route) => false,
-                );
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
               },
               icon: const Icon(Icons.logout_rounded, size: 20),
               label: const Text(

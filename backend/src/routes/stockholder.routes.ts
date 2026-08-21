@@ -15,6 +15,7 @@ import {
   searchInventoryHandler,
   getCheapestSuppliersHandler,
 } from '../controllers/masterProductController.js';
+import { listOrdersHandler } from '../controllers/orderController.js';
 import { requireSupplier } from '../middleware/auth.js';
 
 const router = Router();
@@ -36,6 +37,7 @@ router.post('/demands/:id/accept', requireSupplier, acceptDemandHandler);
 router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 
 // ---- Order / delivery endpoints ----
+router.get('/orders', requireSupplier, listOrdersHandler);
 router.post('/orders/:id/confirm-delivery', requireSupplier, confirmDeliveryHandler);
 
 // ---- Notifications ----

@@ -6,7 +6,7 @@ import stockholderRoutes from './routes/stockholder.routes.js';
 
 export const app = express();
 
-app.use(cors({ origin: env.corsOrigins }));
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {

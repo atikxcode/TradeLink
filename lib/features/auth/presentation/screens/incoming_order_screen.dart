@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/api_service.dart';
+import 'orders_screen.dart';
 
 const Color _primaryTeal = Color(0xFF0F766E);
 const Color _softSlateBg = Color(0xFFF8FAFC);
@@ -10,7 +12,22 @@ const Color _dangerRed = Color(0xFFDC2626);
 const Color _declineBorder = Color(0xFFF3B4B4);
 
 class IncomingOrderScreen extends StatelessWidget {
-  const IncomingOrderScreen({super.key});
+  final String demandId;
+  final String productName;
+  final String quantity;
+  final String unit;
+  final String category;
+  final String notes;
+
+  const IncomingOrderScreen({
+    super.key,
+    required this.demandId,
+    required this.productName,
+    required this.quantity,
+    required this.unit,
+    required this.category,
+    this.notes = '',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +39,6 @@ class IncomingOrderScreen extends StatelessWidget {
     );
   }
 
-  // ---------- AppBar ----------
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return PreferredSize(
       preferredSize: const Size.fromHeight(60),
@@ -43,7 +59,6 @@ class IncomingOrderScreen extends StatelessWidget {
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
                 color: _darkText,
-                fontFamily: 'Sora',
               ),
             ),
           ],
@@ -71,7 +86,6 @@ class IncomingOrderScreen extends StatelessWidget {
     );
   }
 
-  // ---------- Body ----------
   Widget _buildBody() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -101,43 +115,42 @@ class IncomingOrderScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Rice — Basmati',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _darkText,
-                    fontFamily: 'Sora',
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _lightGrayBox,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'Within 10km',
-                    style: TextStyle(
-                      fontSize: 11,
+                Expanded(
+                  child: Text(
+                    productName,
+                    style: const TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: _mutedLabel,
+                      color: _darkText,
                     ),
                   ),
                 ),
+                if (category.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _lightGrayBox,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      category,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _mutedLabel,
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
-            const _InfoRow(label: 'Quantity', value: '50 kg'),
+            _InfoRow(label: 'Quantity', value: '$quantity $unit'),
             const _DividerLine(),
-            const _InfoRow(label: 'Shop', value: 'Rahim General Store'),
-            const _DividerLine(),
-            const _InfoRow(label: 'Distance', value: '2.1 km · Mirpur-10'),
-            const _DividerLine(),
-            const _InfoRow(label: 'Posted', value: '2 hours ago'),
+            if (notes.isNotEmpty) ...[
+              _InfoRow(label: 'Notes', value: notes),
+              const _DividerLine(),
+            ],
+            const _InfoRow(label: 'Posted', value: 'Recent'),
           ],
         ),
       ),
@@ -163,7 +176,6 @@ class IncomingOrderScreen extends StatelessWidget {
     );
   }
 
-  // ---------- Bottom Action Bar ----------
   Widget _buildBottomActionBar(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -179,13 +191,17 @@ class IncomingOrderScreen extends StatelessWidget {
               child: SizedBox(
                 height: 48,
                 child: OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Order declined'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                  onPressed: () async {
+                    final result = await ApiService.post('/demands/$demandId/decline');
+                    if (result != null && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Order declined'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      Navigator.pop(context);
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _dangerRed,
@@ -196,11 +212,7 @@ class IncomingOrderScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'Decline',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'Inter',
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -210,13 +222,20 @@ class IncomingOrderScreen extends StatelessWidget {
               child: SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Order accepted'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                  onPressed: () async {
+                    final result = await ApiService.post('/demands/$demandId/accept');
+                    if (result != null && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Order accepted'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const OrdersScreen()),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryTeal,
@@ -228,11 +247,7 @@ class IncomingOrderScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'Accept order',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'Inter',
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -259,19 +274,17 @@ class _InfoRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: _mutedLabel,
-              fontFamily: 'Inter',
-            ),
+            style: const TextStyle(fontSize: 14, color: _mutedLabel),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: _darkText,
-              fontFamily: 'Inter',
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: _darkText,
+              ),
+              textAlign: TextAlign.end,
             ),
           ),
         ],
