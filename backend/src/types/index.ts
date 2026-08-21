@@ -3,15 +3,27 @@
 
 export type UserRole = 'shop_owner' | 'supplier';
 
+// ---- Tier 1: Master Product Catalog ----
+
+export interface MasterProduct {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  createdAt: string;
+}
+
+// ---- Tier 2: Stockholder Inventory ----
+
 export interface StockItem {
   id: string;
-  userId: string;
-  productId: string | null;
+  stockholderId: string;
+  masterProductId: string | null;
+  customProductName: string;
   category: string;
-  productName: string;
-  quantity: number;
-  unit: string;
   pricePerUnit: number;
+  quantityAvailable: number;
+  unit: string;
   isAvailable: boolean;
   createdAt: string;
   updatedAt: string;
@@ -69,8 +81,9 @@ export interface NotificationItem {
 // ----- Request payloads -----
 
 export interface CreateStockPayload {
+  masterProductId?: string;
+  customProductName: string;
   category: string;
-  productName: string;
   quantity: number;
   unit: string;
   pricePerUnit: number;
