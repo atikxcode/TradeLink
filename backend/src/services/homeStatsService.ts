@@ -33,10 +33,6 @@ export function mapDemandRow(row: DemandRow): NearbyDemand {
 
 /**
  * Aggregates the Supplier (stockholder) home dashboard.
- *
- * Atik's schema stores supplier location on `users` and demands carry no
- * location/geo columns, so the demand feed is simply the newest pending
- * demands (not spatially ranked).
  */
 export async function getHomeStats(userId: string): Promise<HomeStatsResponse> {
   const { rows: demandRows } = await db.query<DemandRow>(

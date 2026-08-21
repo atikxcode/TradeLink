@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { publishStock } from '../controllers/stockController.js';
+import { publishStock, listStockHandler } from '../controllers/stockController.js';
 import { getHomeStatsHandler } from '../controllers/homeStatsController.js';
 import {
   acceptDemandHandler,
@@ -9,21 +9,32 @@ import {
   getNotificationsHandler,
   markReadHandler,
 } from '../controllers/notificationController.js';
+import {
+  listMasterProductsHandler,
+  searchInventoryHandler,
+  getCheapestSuppliersHandler,
+} from '../controllers/masterProductController.js';
 import { requireSupplier } from '../middleware/auth.js';
 
 const router = Router();
 
-// Publish Stock (supplier only)
-router.post('/suppliers/stock', requireSupplier, publishStock);
+// ---- Master Product Catalog ----
+router.get('/master-products', listMasterProductsHandler);
 
-// Home Feed & Stats (supplier only)
+// ---- Inventory Search (AI chatbot sourcing) ----
+router.get('/inventory/search', searchInventoryHandler);
+router.get('/inventory/cheapest', getCheapestSuppliersHandler);
+
+// ---- Supplier (Stockholder) endpoints ----
+router.post('/suppliers/stock', requireSupplier, publishStock);
+router.get('/suppliers/stock', requireSupplier, listStockHandler);
 router.get('/suppliers/home-stats', requireSupplier, getHomeStatsHandler);
 
-// Accept / Decline demand (supplier only)
+// ---- Demand endpoints ----
 router.post('/demands/:id/accept', requireSupplier, acceptDemandHandler);
 router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 
-// Notifications (any authenticated user)
+// ---- Notifications ----
 router.get('/notifications', getNotificationsHandler);
 router.patch('/notifications/mark-read', markReadHandler);
 

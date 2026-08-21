@@ -4,8 +4,9 @@ const CATEGORIES = ['Grocery', 'Pharmacy', 'Stationery', 'Hardware'] as const;
 const UNITS = ['kg', 'litre', 'pcs'] as const;
 
 export const createStockSchema = z.object({
+  masterProductId: z.string().uuid().optional(),
+  customProductName: z.string().trim().min(1).max(255),
   category: z.enum(CATEGORIES),
-  productName: z.string().trim().min(1).max(160),
   quantity: z.number().positive().max(1_000_000),
   unit: z.enum(UNITS),
   pricePerUnit: z.number().nonnegative().max(1_000_000),

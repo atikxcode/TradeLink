@@ -120,8 +120,9 @@ export async function acceptDemand(
 
     const { rows: stockRows } = await client.query<{ price_per_unit: number }>(
       `SELECT price_per_unit
-       FROM stocks
-       WHERE user_id = $1 AND is_available = true AND product_name = $2
+       FROM stockholder_inventory
+       WHERE stockholder_id = $1 AND is_available = true
+         AND custom_product_name ILIKE '%' || $2 || '%'
        ORDER BY created_at DESC
        LIMIT 1`,
       [supplierId, demandRow.product_name],
