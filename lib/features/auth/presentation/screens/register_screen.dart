@@ -7,7 +7,7 @@ import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_categories.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'shop_owner_home_screen.dart';
-import 'stockholder_otp.dart';
+import 'stockholder_home_screen.dart';
 import '../widgets/map_location_picker_dialog.dart';
 import 'login_screen.dart';
 
@@ -137,12 +137,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           (route) => false,
         );
       } else {
+        // No OTP at registration — go straight to the stockholder dashboard.
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => StockholderOtpScreen(
-              phoneNumber: phone,
-            ),
+            builder: (context) => const StockholderHomeScreen(),
           ),
           (route) => false,
         );

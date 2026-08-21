@@ -4,6 +4,7 @@
 
 TRUNCATE TABLE 
     public.otps,
+    public.user_auth_otps,
     public.ratings,
     public.orders,
     public.demands,

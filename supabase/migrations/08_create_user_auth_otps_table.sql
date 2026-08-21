@@ -1,4 +1,4 @@
--- Migration: 07_create_user_auth_otps_table.sql
+-- Migration: 08_create_user_auth_otps_table.sql
 -- Description: One-time passwords for Shop Owner & Stockholder (Supplier)
 --              phone-based LOGIN. Registration does NOT use OTP.
 --              Separate from public.otps (delivery verification). Keyed by
