@@ -1,9 +1,10 @@
 -- =============================================================================
 -- TradeLink — User Auth OTP (Shop Owner & Stockholder)
 --
--- Stores one-time passwords used for phone-based login / registration of
--- shop owners and stockholders (suppliers). Keyed by phone_number (+ role)
--- instead of user_id so an OTP can be issued BEFORE the users row exists.
+-- Stores one-time passwords used for phone-based LOGIN of shop owners and
+-- stockholders (suppliers). Registration does NOT use OTP. Keyed by
+-- phone_number (+ role) instead of user_id so an OTP can be issued for a
+-- phone number that already has a users row.
 -- This is separate from public.otps which is delivery verification only.
 -- =============================================================================
 
@@ -15,7 +16,6 @@ CREATE TABLE IF NOT EXISTS public.user_auth_otps (
     phone_number TEXT NOT NULL,
     role user_role NOT NULL DEFAULT 'shop_owner',
     otp_code VARCHAR(6) NOT NULL,
-    purpose VARCHAR(20) NOT NULL DEFAULT 'login',   -- 'login' | 'registration'
     is_verified BOOLEAN NOT NULL DEFAULT false,
     attempts INTEGER NOT NULL DEFAULT 0,            -- brute-force guard
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (now() + interval '5 minutes'),
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.user_auth_otps (
 );
 
 COMMENT ON TABLE public.user_auth_otps IS
-    'One-time passwords for shop_owner / supplier (stockholder) phone auth';
+    'Login one-time passwords for shop_owner / supplier (stockholder) phone auth';
 
 -- ---------------------------------------------------------------------------
 -- Indexes: latest OTP per phone+role lookup, expiry cleanup

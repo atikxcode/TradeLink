@@ -98,7 +98,15 @@ export interface HomeStatsResponse {
 
 export interface AcceptDemandResponse {
   order: OrderItem;
-  deliveryOtp: string;
   demandId: string;
+  message: string;
+}
+
+// Returned to the supplier when they confirm the order for delivery.
+// The OTP itself is NOT in this response — it is delivered to the
+// shop owner via a notification.
+export interface ConfirmDeliveryResponse {
+  orderId: string;
+  status: OrderStatus;
   message: string;
 }

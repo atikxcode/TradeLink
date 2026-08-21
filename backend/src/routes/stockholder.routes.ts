@@ -3,6 +3,7 @@ import { publishStock, listStockHandler } from '../controllers/stockController.j
 import { getHomeStatsHandler } from '../controllers/homeStatsController.js';
 import {
   acceptDemandHandler,
+  confirmDeliveryHandler,
   declineDemandHandler,
 } from '../controllers/demandController.js';
 import {
@@ -35,8 +36,9 @@ router.get('/suppliers/home-stats', requireSupplier, getHomeStatsHandler);
 router.post('/demands/:id/accept', requireSupplier, acceptDemandHandler);
 router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 
-// ---- Order endpoints ----
+// ---- Order / delivery endpoints ----
 router.get('/orders', requireSupplier, listOrdersHandler);
+router.post('/orders/:id/confirm-delivery', requireSupplier, confirmDeliveryHandler);
 
 // ---- Notifications ----
 router.get('/notifications', getNotificationsHandler);

@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto';
 import { db, type DbClient } from '../db/pool.js';
 import type {
   AcceptDemandResponse,
+  ConfirmDeliveryResponse,
   NotificationItem,
   OrderItem,
 } from '../types/index.js';
@@ -80,8 +81,10 @@ function httpError(message: string, status: number): Error & { status: number } 
  * Accept a demand inside a DB transaction:
  *   1. update demand.status -> 'accepted' + accepted_supplier_id
  *   2. create orders row (status 'accepted')
- *   3. create otps row with a generated 6-digit code
- *   4. insert a notification for the shop owner
+ *   3. insert a notification for the shop owner
+ *
+ * No OTP is issued here — the delivery OTP is generated later, when the
+ * supplier confirms the order for delivery (see confirmDelivery).
  */
 export async function acceptDemand(
   demandId: string,
@@ -146,14 +149,6 @@ export async function acceptDemand(
       ],
     );
 
-    const otp = generateDeliveryOtp();
-    const otpRow = await client.query<OTPRow>(
-      `INSERT INTO otps (order_id, otp_code)
-       VALUES ($1, $2)
-       RETURNING *`,
-      [order.rows[0].id, otp],
-    );
-
     await client.query(
       `INSERT INTO notifications (user_id, title, subtitle, type)
        VALUES ($1, $2, $3, 'order_accepted')`,
@@ -168,7 +163,6 @@ export async function acceptDemand(
 
     return {
       order: mapOrderRow(order.rows[0]),
-      deliveryOtp: otpRow.rows[0].otp_code,
       demandId,
       message: 'Demand accepted',
     };
@@ -200,4 +194,83 @@ export async function declineDemand(
   ]);
 
   return { demandId, message: 'Demand declined' };
+}
+
+/**
+ * Supplier (deliveryman) confirms the order for delivery:
+ *   1. lock + validate the order belongs to this supplier and is 'accepted'
+ *   2. generate a fresh 6-digit OTP and store it on the order
+ *      (replaces any previous OTP via ON CONFLICT)
+ *   3. move the order to 'in_transit'
+ *   4. notify the SHOP OWNER with the OTP — they read it out to the
+ *      deliveryman at handover to verify receipt
+ *
+ * The OTP is never returned to the supplier.
+ */
+export async function confirmDelivery(
+  orderId: string,
+  supplierId: string,
+): Promise<ConfirmDeliveryResponse> {
+  const client: DbClient = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const order = await client.query<OrderRow>(
+      `SELECT id, demand_id, shop_owner_id, supplier_id, product_name,
+              quantity, unit, total_amount, status, delivery_address, created_at
+       FROM orders WHERE id = $1 FOR UPDATE`,
+      [orderId],
+    );
+
+    const orderRow = order.rows[0];
+    if (!orderRow) throw httpError('Order not found', 404);
+    if (orderRow.supplier_id !== supplierId) {
+      throw httpError('You are not the supplier of this order', 403);
+    }
+    if (orderRow.status === 'in_transit') {
+      throw httpError('Delivery already confirmed for this order', 409);
+    }
+    if (orderRow.status !== 'accepted') {
+      throw httpError(`Order is ${orderRow.status}, cannot confirm delivery`, 409);
+    }
+
+    const otp = generateDeliveryOtp();
+    await client.query(
+      `INSERT INTO otps (order_id, otp_code)
+       VALUES ($1, $2)
+       ON CONFLICT (order_id)
+       DO UPDATE SET otp_code = EXCLUDED.otp_code,
+                     is_verified = false,
+                     expires_at = now() + interval '24 hours'`,
+      [orderId, otp],
+    );
+
+    await client.query(
+      `UPDATE orders SET status = 'in_transit' WHERE id = $1`,
+      [orderId],
+    );
+
+    await client.query(
+      `INSERT INTO notifications (user_id, title, subtitle, type)
+       VALUES ($1, $2, $3, 'delivery_otp')`,
+      [
+        orderRow.shop_owner_id,
+        'Your delivery OTP',
+        `Share this OTP with the deliveryman to receive ${orderRow.product_name}: ${otp}`,
+      ],
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      orderId,
+      status: 'in_transit',
+      message: 'Delivery confirmed. OTP sent to the shop owner.',
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }

@@ -1,15 +1,14 @@
--- Migration: 07_create_user_auth_otps_table.sql
+-- Migration: 08_create_user_auth_otps_table.sql
 -- Description: One-time passwords for Shop Owner & Stockholder (Supplier)
---              phone-based login/registration. Separate from public.otps
---              (delivery verification). Keyed by phone_number + role so an
---              OTP can be issued before the users row exists.
+--              phone-based LOGIN. Registration does NOT use OTP.
+--              Separate from public.otps (delivery verification). Keyed by
+--              phone_number + role.
 
 CREATE TABLE IF NOT EXISTS public.user_auth_otps (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     phone_number TEXT NOT NULL,
     role user_role NOT NULL DEFAULT 'shop_owner',
     otp_code VARCHAR(6) NOT NULL,
-    purpose VARCHAR(20) NOT NULL DEFAULT 'login',   -- 'login' | 'registration'
     is_verified BOOLEAN NOT NULL DEFAULT false,
     attempts INTEGER NOT NULL DEFAULT 0,            -- brute-force guard
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (now() + interval '5 minutes'),

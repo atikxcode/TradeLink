@@ -2,7 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { parseId } from '../middleware/validation.js';
-import { acceptDemand, declineDemand } from '../services/demandService.js';
+import { acceptDemand, confirmDelivery, declineDemand } from '../services/demandService.js';
 import { db } from '../db/pool.js';
 
 async function getSupplierBusinessName(userId: string): Promise<string> {
@@ -28,6 +28,16 @@ export const declineDemandHandler = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const demandId = parseId(String(req.params.id), 'demand id');
     const result = await declineDemand(demandId);
+    res.json({ success: true, data: result });
+  },
+);
+
+export const confirmDeliveryHandler = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const orderId = parseId(String(req.params.id), 'order id');
+    const supplierId = req.userId!;
+
+    const result = await confirmDelivery(orderId, supplierId);
     res.json({ success: true, data: result });
   },
 );
