@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
@@ -86,11 +88,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // Parse min order value
       final minOrder = double.tryParse(_minOrderController.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
 
+      // Hash the password
+      final bytes = utf8.encode(password);
+      final digest = sha256.convert(bytes);
+      final hashedPassword = digest.toString();
+
       // Insert into Supabase users table and retrieve the record
       final inserted = await SupabaseConfig.client.from(SupabaseConfig.tableUsers).insert({
         'role': roleStr,
         'full_name': name,
         'phone_number': phone,
+        'password_hash': hashedPassword,
         'business_name': businessName,
         'category': _selectedCategory,
         'trade_license': _selectedRole == UserRole.supplier ? _tradeLicenseController.text.trim() : null,

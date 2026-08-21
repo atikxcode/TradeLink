@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -49,11 +51,17 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Query Supabase for the user matching this phone number and role
+      // Hash the password for comparison
+      final bytes = utf8.encode(password);
+      final digest = sha256.convert(bytes);
+      final hashedPassword = digest.toString();
+
+      // Query Supabase for the user matching this phone number, role, and hashed password
       final users = await SupabaseConfig.client
           .from(SupabaseConfig.tableUsers)
           .select()
           .eq('phone_number', phone)
+          .eq('password_hash', hashedPassword)
           .eq('role', roleStr)
           .limit(1);
 
