@@ -29,6 +29,7 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
 
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
   String _selectedCategory = 'Grocery';
@@ -78,6 +79,7 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
   void dispose() {
     _productController.dispose();
     _quantityController.dispose();
+    _budgetController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -182,6 +184,14 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          _buildTextFieldField(
+            label: 'Budget / target price per unit (৳)',
+            hintText: 'e.g. 65',
+            controller: _budgetController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 16),
           _buildLabel('Delivery location'),
@@ -442,6 +452,8 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
                     final product = _productController.text.trim();
                     final quantityStr = _quantityController.text.trim();
                     final quantity = double.tryParse(quantityStr);
+                    final budgetStr = _budgetController.text.trim();
+                    final budget = double.tryParse(budgetStr);
 
                     if (product.isEmpty || quantity == null || quantity <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -449,6 +461,16 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
                           content: Text(
                             'Please enter a valid product name and quantity.',
                           ),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (budgetStr.isNotEmpty && (budget == null || budget <= 0)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a valid budget.'),
                           backgroundColor: Colors.redAccent,
                         ),
                       );
@@ -485,8 +507,9 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
                             'category': _selectedCategory,
                             'quantity': quantity,
                             'unit': _selectedUnit,
+                            'target_price': budget,
                             'notes': _notesController.text.trim(),
-                            'status': 'pending',
+                            'status': 'open',
                             'delivery_address': _address,
                             'latitude': _latitude,
                             'longitude': _longitude,
@@ -507,6 +530,7 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
                       if (widget.isTab) {
                         _productController.clear();
                         _quantityController.clear();
+                        _budgetController.clear();
                         _notesController.clear();
                         if (widget.onPostSuccess != null) {
                           widget.onPostSuccess!();

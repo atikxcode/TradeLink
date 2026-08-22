@@ -135,7 +135,11 @@ export async function searchMarketplace(
       sql += ` ORDER BY si.price_per_unit ASC`;
       break;
     case 'rating':
-      sql += ` ORDER BY avg_rating DESC, si.price_per_unit ASC`;
+    case 'top_rated':
+    case 'Top Rated':
+      // Rated items first (unrated defaults must not bury reviewed
+      // products), then best average rating, then most-reviewed.
+      sql += ` ORDER BY (COALESCE(si.review_count, 0) > 0) DESC, avg_rating DESC, COALESCE(si.review_count, 0) DESC, distance_km ASC`;
       break;
     case 'distance':
     default:

@@ -27,7 +27,7 @@ import {
   getCheapestSuppliersHandler,
 } from '../controllers/masterProductController.js';
 import { listOrdersHandler } from '../controllers/orderController.js';
-import { getPendingOrdersHandler } from '../controllers/pendingOrderController.js';
+import { getPendingOrdersHandler, getCompletedOrdersHandler } from '../controllers/pendingOrderController.js';
 import { createDirectOrderHandler } from '../controllers/directOrderController.js';
 import {
   acceptOrderHandler,
@@ -113,6 +113,7 @@ router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 router.post('/orders/direct', createDirectOrderHandler);
 router.get('/orders', requireSupplier, listOrdersHandler);
 router.get('/orders/pending', requireSupplier, getPendingOrdersHandler);
+router.get('/orders/completed', requireSupplier, getCompletedOrdersHandler);
 router.get('/orders/shop-owner', getShopOwnerOrdersHandler);
 
 // ---- Order lifecycle (supplier actions) ----

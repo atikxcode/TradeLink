@@ -58,7 +58,7 @@ export interface MarketplaceSearchParams {
   shopLng: number | null;
   category?: string;
   maxDistance?: number;
-  sortBy?: 'distance' | 'price' | 'rating';
+  sortBy?: 'distance' | 'price' | 'rating' | 'top_rated' | 'Top Rated';
   limit?: number;
   offset?: number;
 }
@@ -71,11 +71,18 @@ export interface NearbyDemand {
   quantity: number;
   unit: string;
   notes: string | null;
+  targetPrice?: number | null;
+  deliveryAddress?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  shopOwnerName?: string;
+  shopOwnerPhone?: string;
   status: DemandStatus;
   createdAt: string;
 }
 
 export type DemandStatus =
+  | 'open'
   | 'pending'
   | 'accepted'
   | 'delivered'
