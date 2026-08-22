@@ -16,6 +16,7 @@ import {
   getCheapestSuppliersHandler,
 } from '../controllers/masterProductController.js';
 import { listOrdersHandler } from '../controllers/orderController.js';
+import { getPendingOrdersHandler } from '../controllers/pendingOrderController.js';
 import { getProfileHandler, updateProfileHandler } from '../controllers/profileController.js';
 import { requireSupplier } from '../middleware/auth.js';
 
@@ -45,6 +46,7 @@ router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 
 // ---- Order / delivery endpoints ----
 router.get('/orders', requireSupplier, listOrdersHandler);
+router.get('/orders/pending', requireSupplier, getPendingOrdersHandler);
 router.post('/orders/:id/confirm-delivery', requireSupplier, confirmDeliveryHandler);
 
 // ---- Notifications ----

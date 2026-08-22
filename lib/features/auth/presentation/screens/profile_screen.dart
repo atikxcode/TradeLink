@@ -29,7 +29,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _address = '';
   String _createdAt = '';
   String _initials = 'U';
-  String _role = '';
   String _currentLanguage = 'English';
 
   final Map<String, Map<String, String>> _localizedStrings = {
@@ -99,7 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchProfile();
+    _loadProfile();
   }
 
   @override
@@ -178,20 +177,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _initials = _computeInitials(business.isNotEmpty ? business : name);
       _isLoading = false;
     });
-    
-    try {
-      if (_userData != null && _userData!['id'] != null) {
-        await SupabaseConfig.client
-            .from(SupabaseConfig.tableUsers)
-            .update({'preferred_language': newLang})
-            .eq('id', _userData!['id']);
-      }
-      
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('preferred_language', newLang);
-    } catch (e) {
-      // Ignored for now
-    }
+  }
+
+  Future<void> _updateLanguage(String newLang) async {
+    setState(() => _currentLanguage = newLang);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('preferred_language', newLang);
   }
 
   void _showLanguageDialog() {
@@ -378,7 +369,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            child: const Icon(Icons.edit_outlined, color: AppColors.primaryTeal, size: 20),
           ),
           if (_createdAt.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -445,24 +435,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   List<Widget> _buildViewTiles() {
     return [
-      _ProfileTile(icon: Icons.person_outline, label: 'Full Name', value: _fullName.isNotEmpty ? _fullName : 'Not set'),
-      _ProfileTile(icon: Icons.store_outlined, label: 'Business Name', value: _businessName.isNotEmpty ? _businessName : 'Not set'),
-      _ProfileTile(icon: Icons.phone_outlined, label: 'Phone', value: _phone.isNotEmpty ? _phone : 'Not set'),
-      _ProfileTile(icon: Icons.category_outlined, label: 'Category', value: _category.isNotEmpty ? _category : 'Not set'),
+      _ProfileListTile(icon: Icons.person_outline, label: 'Full Name', value: _fullName.isNotEmpty ? _fullName : 'Not set'),
+      _ProfileListTile(icon: Icons.store_outlined, label: 'Business Name', value: _businessName.isNotEmpty ? _businessName : 'Not set'),
+      _ProfileListTile(icon: Icons.phone_outlined, label: 'Phone', value: _phone.isNotEmpty ? _phone : 'Not set'),
+      _ProfileListTile(icon: Icons.category_outlined, label: 'Category', value: _category.isNotEmpty ? _category : 'Not set'),
       if (_address.isNotEmpty)
-        _ProfileTile(icon: Icons.location_on_outlined, label: 'Address', value: _address),
+        _ProfileListTile(icon: Icons.location_on_outlined, label: 'Address', value: _address),
       if (_isSupplier) ...[
-        _ProfileTile(
+        _ProfileListTile(
           icon: Icons.badge_outlined,
           label: 'Trade License',
           value: _tradeLicense.isNotEmpty ? _tradeLicense : 'Not provided',
         ),
-        _ProfileTile(
+        _ProfileListTile(
           icon: Icons.shopping_cart_outlined,
           label: 'Min Order Value',
           value: '৳${double.tryParse(_minOrderValue) ?? 0}',
         ),
-        _ProfileTile(
+        _ProfileListTile(
           icon: Icons.social_distance_outlined,
           label: 'Supply Radius',
           value: _supplyRadius.isNotEmpty ? _supplyRadius : 'Not set',
@@ -622,8 +612,8 @@ class _ProfileListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return Container(
+      margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: AppColors.inputBorder),
