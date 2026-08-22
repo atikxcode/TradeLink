@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../core/config/supabase_config.dart';
 
 const Color _pdPrimaryTeal = Color(0xFF0F766E);
@@ -12,7 +14,10 @@ const Color _pdBorderGray = Color(0xFFE2E8F0);
 const Color _pdLightGrayBox = Color(0xFFF1F5F9);
 
 class PostDemandScreen extends StatefulWidget {
-  const PostDemandScreen({super.key});
+  final bool isTab;
+  final VoidCallback? onPostSuccess;
+
+  const PostDemandScreen({super.key, this.isTab = false, this.onPostSuccess});
 
   @override
   State<PostDemandScreen> createState() => _PostDemandScreenState();
@@ -29,11 +34,45 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
   String _selectedCategory = 'Grocery';
   String _selectedUnit = 'kg';
 
+  String? _address;
+  double? _latitude;
+  double? _longitude;
+
   static const Map<String, IconData> _categories = {
     'Grocery': Icons.shopping_bag_outlined,
     'Pharmacy': Icons.medical_services_outlined,
     'Hardware': Icons.home_repair_service_outlined,
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserLocation();
+  }
+
+  Future<void> _fetchUserLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? userId = prefs.getString('user_id');
+      if (userId == null) return;
+
+      final res = await SupabaseConfig.client
+          .from(SupabaseConfig.tableUsers)
+          .select('address, latitude, longitude')
+          .eq('id', userId)
+          .single();
+      
+      if (mounted) {
+        setState(() {
+          _address = res['address']?.toString();
+          _latitude = res['latitude'] != null ? (res['latitude'] as num).toDouble() : null;
+          _longitude = res['longitude'] != null ? (res['longitude'] as num).toDouble() : null;
+        });
+      }
+    } catch (e) {
+      // Ignore if it fails to load address; they can still post
+    }
+  }
 
   @override
   void dispose() {
@@ -84,6 +123,7 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
   }
 
   Widget _buildBackButton(BuildContext context) {
+    if (widget.isTab) return const SizedBox();
     return GestureDetector(
       onTap: () => Navigator.pop(context),
       child: Container(
@@ -148,9 +188,11 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
           const SizedBox(height: 8),
           _buildMapCard(),
           const SizedBox(height: 8),
-          const Text(
-            'Using shop location — Mirpur-10',
-            style: TextStyle(
+          Text(
+            _address != null && _address!.isNotEmpty 
+              ? 'Using shop location — $_address' 
+              : 'Shop location not set',
+            style: const TextStyle(
               fontSize: 13,
               color: _pdMutedText,
               fontFamily: 'Inter',
@@ -340,19 +382,43 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
         border: Border.all(color: _pdBorderGray),
         color: const Color(0xFFEEF8F6),
       ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned.fill(
-            child: CustomPaint(painter: _GridPainter()),
-          ),
-          const Icon(
-            Icons.location_on_rounded,
-            size: 36,
-            color: _pdPrimaryTeal,
-          ),
-        ],
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: _latitude != null && _longitude != null
+          ? IgnorePointer(
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: LatLng(_latitude!, _longitude!),
+                  initialZoom: 15.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.tradelink',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(_latitude!, _longitude!),
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_on, size: 36, color: _pdPrimaryTeal),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            )
+          : Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+                const Icon(
+                  Icons.location_on_rounded,
+                  size: 36,
+                  color: _pdPrimaryTeal,
+                ),
+              ],
+            ),
     );
   }
 
@@ -370,75 +436,98 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: _isSubmitting ? null : () async {
-              final product = _productController.text.trim();
-              final quantityStr = _quantityController.text.trim();
-              final quantity = double.tryParse(quantityStr);
+            onPressed: _isSubmitting
+                ? null
+                : () async {
+                    final product = _productController.text.trim();
+                    final quantityStr = _quantityController.text.trim();
+                    final quantity = double.tryParse(quantityStr);
 
-              if (product.isEmpty || quantity == null || quantity <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a valid product name and quantity.'),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-                return;
-              }
+                    if (product.isEmpty || quantity == null || quantity <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enter a valid product name and quantity.',
+                          ),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                      return;
+                    }
 
-              setState(() => _isSubmitting = true);
+                    setState(() => _isSubmitting = true);
 
-              try {
-                final prefs = await SharedPreferences.getInstance();
-                String? userId = prefs.getString('user_id');
+                    try {
+                      final prefs = await SharedPreferences.getInstance();
+                      String? userId = prefs.getString('user_id');
 
-                // If user_id isn't saved, try to fetch the first shop_owner
-                if (userId == null || userId.isEmpty) {
-                  final userRes = await SupabaseConfig.client
-                      .from(SupabaseConfig.tableUsers)
-                      .select('id')
-                      .eq('role', 'shop_owner')
-                      .limit(1);
-                  if ((userRes as List).isNotEmpty) {
-                    userId = userRes[0]['id'];
-                  }
-                }
+                      // If user_id isn't saved, try to fetch the first shop_owner
+                      if (userId == null || userId.isEmpty) {
+                        final userRes = await SupabaseConfig.client
+                            .from(SupabaseConfig.tableUsers)
+                            .select('id')
+                            .eq('role', 'shop_owner')
+                            .limit(1);
+                        if ((userRes as List).isNotEmpty) {
+                          userId = userRes[0]['id'];
+                        }
+                      }
 
-                if (userId == null) {
-                  throw Exception('Please register or log in first.');
-                }
+                      if (userId == null) {
+                        throw Exception('Please register or log in first.');
+                      }
 
-                await SupabaseConfig.client.from(SupabaseConfig.tableDemands).insert({
-                  'shop_owner_id': userId,
-                  'product_name': product,
-                  'category': _selectedCategory,
-                  'quantity': quantity,
-                  'unit': _selectedUnit,
-                  'notes': _notesController.text.trim(),
-                  'status': 'pending',
-                });
+                      await SupabaseConfig.client
+                          .from(SupabaseConfig.tableDemands)
+                          .insert({
+                            'shop_owner_id': userId,
+                            'product_name': product,
+                            'category': _selectedCategory,
+                            'quantity': quantity,
+                            'unit': _selectedUnit,
+                            'notes': _notesController.text.trim(),
+                            'status': 'pending',
+                            'delivery_address': _address,
+                            'latitude': _latitude,
+                            'longitude': _longitude,
+                          });
 
-                if (!mounted) return;
+                      if (!mounted) return;
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Demand posted: $product ($quantityStr $_selectedUnit)'),
-                    backgroundColor: _pdPrimaryTeal,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                Navigator.pop(context, true);
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to post demand: ${e.toString()}'),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-              } finally {
-                if (mounted) setState(() => _isSubmitting = false);
-              }
-            },
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Demand posted: $product ($quantityStr $_selectedUnit)',
+                          ),
+                          backgroundColor: _pdPrimaryTeal,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+
+                      if (widget.isTab) {
+                        _productController.clear();
+                        _quantityController.clear();
+                        _notesController.clear();
+                        if (widget.onPostSuccess != null) {
+                          widget.onPostSuccess!();
+                        }
+                      } else {
+                        Navigator.pop(context, true);
+                      }
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Failed to post demand: ${e.toString()}',
+                          ),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => _isSubmitting = false);
+                    }
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: _pdPrimaryTeal,
               foregroundColor: Colors.white,
