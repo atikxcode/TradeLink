@@ -66,10 +66,78 @@ export async function countActiveStock(userId: string): Promise<number> {
 
 export async function listStock(userId: string): Promise<StockItem[]> {
   const { rows } = await db.query<StockRow>(
-    `SELECT * FROM stockholder_inventory
+    `SELECT id, stockholder_id, master_product_id, custom_product_name,
+            category, price_per_unit, quantity_available, unit,
+            is_available, created_at, updated_at
+     FROM stockholder_inventory
      WHERE stockholder_id = $1 AND is_available = true
-     ORDER BY created_at DESC`,
+     ORDER BY updated_at DESC`,
     [userId],
   );
   return rows.map(mapStockRow);
+}
+
+export interface UpdateStockPayload {
+  customProductName?: string;
+  category?: string;
+  pricePerUnit?: number;
+  quantity?: number;
+  unit?: string;
+}
+
+export async function updateStock(
+  userId: string,
+  stockId: string,
+  payload: UpdateStockPayload,
+): Promise<StockItem | null> {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (payload.customProductName !== undefined) {
+    fields.push(`custom_product_name = $${idx++}`);
+    values.push(payload.customProductName);
+  }
+  if (payload.category !== undefined) {
+    fields.push(`category = $${idx++}`);
+    values.push(payload.category);
+  }
+  if (payload.pricePerUnit !== undefined) {
+    fields.push(`price_per_unit = $${idx++}`);
+    values.push(payload.pricePerUnit);
+  }
+  if (payload.quantity !== undefined) {
+    fields.push(`quantity_available = $${idx++}`);
+    values.push(payload.quantity);
+  }
+  if (payload.unit !== undefined) {
+    fields.push(`unit = $${idx++}`);
+    values.push(payload.unit);
+  }
+
+  if (fields.length === 0) return null;
+
+  fields.push(`updated_at = now()`);
+
+  const { rows } = await db.query<StockRow>(
+    `UPDATE stockholder_inventory SET ${fields.join(', ')}
+     WHERE id = $${idx} AND stockholder_id = $${idx + 1} AND is_available = true
+     RETURNING *`,
+    [...values, stockId, userId],
+  );
+
+  if (rows.length === 0) return null;
+  return mapStockRow(rows[0]);
+}
+
+export async function deleteStock(
+  userId: string,
+  stockId: string,
+): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `DELETE FROM stockholder_inventory
+     WHERE id = $1 AND stockholder_id = $2`,
+    [stockId, userId],
+  );
+  return (rowCount ?? 0) > 0;
 }

@@ -24,7 +24,7 @@ class ApiService {
     };
   }
 
-  static Future<Map<String, dynamic>?> get(String path) async {
+  static Future<dynamic> get(String path) async {
     try {
       final headers = await _headers();
       final url = '$_baseUrl$path';
@@ -60,6 +60,46 @@ class ApiService {
       return null;
     } catch (e) {
       debugPrint('[ApiService] POST ERROR: $e');
+      return null;
+    }
+  }
+
+  static Future<dynamic> patch(String path, {Map<String, dynamic>? body}) async {
+    try {
+      final headers = await _headers();
+      final url = '$_baseUrl$path';
+      debugPrint('[ApiService] PATCH $url body=$body');
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: headers,
+        body: body != null ? json.encode(body) : null,
+      );
+      debugPrint('[ApiService] PATCH ${response.statusCode} ${response.body}');
+      final respBody = json.decode(response.body);
+      if ((response.statusCode == 200 || response.statusCode == 201) && respBody['success'] == true) {
+        return respBody['data'];
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ApiService] PATCH ERROR: $e');
+      return null;
+    }
+  }
+
+  static Future<dynamic> delete(String path) async {
+    try {
+      final headers = await _headers();
+      final url = '$_baseUrl$path';
+      debugPrint('[ApiService] DELETE $url');
+      final response = await http.delete(Uri.parse(url), headers: headers);
+      debugPrint('[ApiService] DELETE ${response.statusCode} ${response.body}');
+      final respBody = json.decode(response.body);
+      if ((response.statusCode == 200 || response.statusCode == 201) && respBody['success'] == true) {
+        return respBody['data'];
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ApiService] DELETE ERROR: $e');
       return null;
     }
   }
