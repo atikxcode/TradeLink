@@ -17,6 +17,8 @@ import {
 import {
   submitReviewHandler,
   getSupplierRatingHandler,
+  getInventoryRatingHandler,
+  listInventoryReviewsHandler,
   resolveOrderHandler,
 } from '../controllers/reviewController.js';
 import {
@@ -129,5 +131,7 @@ router.patch('/notifications/:id/read', markOneReadHandler);
 router.post('/reviews', submitReviewHandler);
 router.get('/reviews/resolve-order', resolveOrderHandler);
 router.get('/reviews/supplier/:supplierId', getSupplierRatingHandler);
+router.get('/reviews/inventory/:inventoryId/reviews', listInventoryReviewsHandler);
+router.get('/reviews/inventory/:inventoryId', getInventoryRatingHandler);
 
 export default router;

@@ -1,14 +1,20 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { submitReview, getSupplierRating, resolveOrderForReview } from '../services/reviewService.js';
+import {
+  submitReview,
+  getSupplierRating,
+  getInventoryRating,
+  listInventoryReviews,
+  resolveOrderForReview,
+} from '../services/reviewService.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const submitReviewHandler = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const shopOwnerId = req.userId!;
-    const { orderId, supplierId, rating, comment } = req.body;
+    const { orderId, supplierId, inventoryId, rating, comment } = req.body;
 
     if (!rating) {
       res.status(400).json({ success: false, error: 'Rating is required' });
@@ -21,14 +27,16 @@ export const submitReviewHandler = asyncHandler(
       return;
     }
 
-    // Validate UUIDs if provided (don't reject — service handles fallback)
     const validOrderId = orderId && UUID_RE.test(String(orderId)) ? String(orderId) : null;
     const validSupplierId = supplierId && UUID_RE.test(String(supplierId)) ? String(supplierId) : null;
+    const validInventoryId = inventoryId && UUID_RE.test(String(inventoryId)) ? String(inventoryId) : null;
 
-    if (!validSupplierId) {
+    // supplierId may be omitted when orderId is provided — the service
+    // resolves supplier + inventory from the order as a fallback.
+    if (!validSupplierId && !validOrderId) {
       res.status(400).json({
         success: false,
-        error: 'A valid supplier ID is required to submit a review',
+        error: 'A valid supplier ID or order ID is required to submit a review',
       });
       return;
     }
@@ -37,6 +45,7 @@ export const submitReviewHandler = asyncHandler(
       const review = await submitReview(shopOwnerId, {
         orderId: validOrderId,
         supplierId: validSupplierId,
+        inventoryId: validInventoryId,
         rating: numRating,
         comment: comment || null,
       });
@@ -61,6 +70,30 @@ export const getSupplierRatingHandler = asyncHandler(
     }
     const rating = await getSupplierRating(supplierId);
     res.json({ success: true, data: rating });
+  },
+);
+
+export const getInventoryRatingHandler = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const inventoryId = String(req.params.inventoryId);
+    if (!inventoryId || !UUID_RE.test(inventoryId)) {
+      res.status(400).json({ success: false, error: 'Valid inventoryId is required' });
+      return;
+    }
+    const rating = await getInventoryRating(inventoryId);
+    res.json({ success: true, data: rating });
+  },
+);
+
+export const listInventoryReviewsHandler = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const inventoryId = String(req.params.inventoryId);
+    if (!inventoryId || !UUID_RE.test(inventoryId)) {
+      res.status(400).json({ success: false, error: 'Valid inventoryId is required' });
+      return;
+    }
+    const reviews = await listInventoryReviews(inventoryId);
+    res.json({ success: true, data: reviews });
   },
 );
 

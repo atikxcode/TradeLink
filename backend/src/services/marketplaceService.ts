@@ -83,16 +83,6 @@ export async function searchMarketplace(
     END
   `;
 
-  const ratingsSubquery = `
-    LEFT JOIN (
-      SELECT supplier_id,
-             ROUND(AVG(rating)::numeric, 1) AS avg_rating,
-             COUNT(*)::int AS rating_count
-      FROM public.ratings
-      GROUP BY supplier_id
-    ) r ON r.supplier_id = u.id
-  `;
-
   let sql = `
     SELECT
       si.id AS stock_id,
@@ -109,11 +99,10 @@ export async function searchMarketplace(
       si.image_url,
       COALESCE(si.delivery_radius_km, 50) AS delivery_radius_km,
       ${haversineExpr} AS distance_km,
-      COALESCE(r.avg_rating, 0) AS avg_rating,
-      COALESCE(r.rating_count, 0) AS rating_count
+      COALESCE(si.rating, 5.0) AS avg_rating,
+      COALESCE(si.review_count, 0) AS rating_count
     FROM public.stockholder_inventory si
     JOIN public.users u ON si.stockholder_id = u.id
-    ${ratingsSubquery}
     WHERE si.is_available = true
       AND si.quantity_available > 0
   `;
@@ -204,17 +193,10 @@ export async function getProductDetail(
       si.image_url,
       COALESCE(si.delivery_radius_km, 50) AS delivery_radius_km,
       ${haversineExpr} AS distance_km,
-      COALESCE(r.avg_rating, 0) AS avg_rating,
-      COALESCE(r.rating_count, 0) AS rating_count
+      COALESCE(si.rating, 5.0) AS avg_rating,
+      COALESCE(si.review_count, 0) AS rating_count
     FROM public.stockholder_inventory si
     JOIN public.users u ON si.stockholder_id = u.id
-    LEFT JOIN (
-      SELECT supplier_id,
-             ROUND(AVG(rating)::numeric, 1) AS avg_rating,
-             COUNT(*)::int AS rating_count
-      FROM public.ratings
-      GROUP BY supplier_id
-    ) r ON r.supplier_id = u.id
     WHERE si.id = $3
       AND si.is_available = true
   `;
@@ -269,17 +251,10 @@ export async function getProductsByCategory(
       si.image_url,
       COALESCE(si.delivery_radius_km, 50) AS delivery_radius_km,
       ${haversineExpr} AS distance_km,
-      COALESCE(r.avg_rating, 0) AS avg_rating,
-      COALESCE(r.rating_count, 0) AS rating_count
+      COALESCE(si.rating, 5.0) AS avg_rating,
+      COALESCE(si.review_count, 0) AS rating_count
     FROM public.stockholder_inventory si
     JOIN public.users u ON si.stockholder_id = u.id
-    LEFT JOIN (
-      SELECT supplier_id,
-             ROUND(AVG(rating)::numeric, 1) AS avg_rating,
-             COUNT(*)::int AS rating_count
-      FROM public.ratings
-      GROUP BY supplier_id
-    ) r ON r.supplier_id = u.id
     WHERE LOWER(si.category) = LOWER($3)
       AND si.is_available = true
       AND si.quantity_available > 0
