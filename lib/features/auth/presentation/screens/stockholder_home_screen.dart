@@ -6,6 +6,7 @@ import 'notifications_screen.dart';
 import 'stock_screen.dart';
 import 'orders_screen.dart';
 import 'profile_screen.dart';
+import 'pending_orders_screen.dart';
 
 class StockholderHomeScreen extends StatefulWidget {
   const StockholderHomeScreen({super.key});
@@ -313,7 +314,12 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
             children: [
               _buildStatCard('$_newDemandsCount', 'New demands'),
               const SizedBox(width: 12),
-              _buildStatCard('$_pendingOrdersCount', 'Pending orders'),
+              _buildStatCard('$_pendingOrdersCount', 'Pending orders', onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PendingOrdersScreen()),
+                );
+              }),
               const SizedBox(width: 12),
               _buildStatCard('$_stockItemsCount', 'Stock items'),
             ],
@@ -372,34 +378,38 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
     );
   }
 
-  Widget _buildStatCard(String number, String label) {
-    return Expanded(
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              number,
-              style: const TextStyle(
-                fontSize: 26,
-                color: Color(0xFF111827),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-            ),
-          ],
-        ),
+  Widget _buildStatCard(String number, String label, {VoidCallback? onTap}) {
+    final card = Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(16),
       ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            number,
+            style: const TextStyle(
+              fontSize: 26,
+              color: Color(0xFF111827),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+          ),
+        ],
+      ),
+    );
+
+    return Expanded(
+      child: onTap != null
+          ? GestureDetector(onTap: onTap, child: card)
+          : card,
     );
   }
 
