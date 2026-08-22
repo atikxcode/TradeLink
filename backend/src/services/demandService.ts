@@ -12,6 +12,7 @@ export interface OrderRow {
   demand_id: string | null;
   shop_owner_id: string;
   supplier_id: string;
+  inventory_id?: string | null;
   product_name: string;
   quantity: number;
   unit: string;
@@ -45,6 +46,7 @@ export function mapOrderRow(row: OrderRow): OrderItem {
     demandId: row.demand_id,
     shopOwnerId: row.shop_owner_id,
     supplierId: row.supplier_id,
+    inventoryId: row.inventory_id ?? null,
     productName: row.product_name,
     quantity: row.quantity,
     unit: row.unit,
@@ -122,8 +124,8 @@ export async function acceptDemand(
       [supplierId, demandId],
     );
 
-    const { rows: stockRows } = await client.query<{ price_per_unit: number }>(
-      `SELECT price_per_unit
+    const { rows: stockRows } = await client.query<{ id: string; price_per_unit: number }>(
+      `SELECT id, price_per_unit
        FROM stockholder_inventory
        WHERE stockholder_id = $1 AND is_available = true
          AND custom_product_name ILIKE '%' || $2 || '%'
@@ -131,18 +133,20 @@ export async function acceptDemand(
        LIMIT 1`,
       [supplierId, demandRow.product_name],
     );
+    const matchedStockId = stockRows[0]?.id ?? null;
     const pricePerUnit = stockRows[0]?.price_per_unit ?? 0;
     const totalAmount = demandRow.quantity * pricePerUnit;
 
     const order = await client.query<OrderRow>(
       `INSERT INTO orders
-         (demand_id, shop_owner_id, supplier_id, product_name, quantity, unit, total_amount, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'accepted')
+         (demand_id, shop_owner_id, supplier_id, inventory_id, product_name, quantity, unit, total_amount, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'accepted')
        RETURNING *`,
       [
         demandId,
         demandRow.shop_owner_id,
         supplierId,
+        matchedStockId,
         demandRow.product_name,
         demandRow.quantity,
         demandRow.unit,

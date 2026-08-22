@@ -14,6 +14,7 @@ function mapOrderRow(row: any): OrderItem {
     demandId: row.demand_id ?? null,
     shopOwnerId: row.shop_owner_id,
     supplierId: row.supplier_id,
+    inventoryId: row.inventory_id ?? null,
     productName: row.product_name,
     quantity: Number(row.quantity),
     unit: row.unit,
@@ -252,7 +253,7 @@ export async function confirmDeliveryWithOtp(
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      `SELECT id, supplier_id, shop_owner_id, status, delivery_otp, product_name
+      `SELECT id, supplier_id, shop_owner_id, status, delivery_otp, product_name, quantity, inventory_id
        FROM orders WHERE id = $1 FOR UPDATE`,
       [orderId],
     );
@@ -285,6 +286,42 @@ export async function confirmDeliveryWithOtp(
       `UPDATE otps SET is_verified = true WHERE order_id = $1`,
       [orderId],
     );
+
+    // Subtract delivered quantity from the supplier's inventory.
+    // Resolves the stock item by inventory_id, falling back to a
+    // product_name + supplier match for legacy orders.
+    const invRows = await client.query<{ id: string }>(
+      `SELECT COALESCE(
+         (SELECT o.inventory_id FROM orders o WHERE o.id = $1),
+         (SELECT si.id FROM public.stockholder_inventory si
+          WHERE si.stockholder_id = $2
+            AND LOWER(si.custom_product_name) = LOWER($3)
+          LIMIT 1)
+       ) AS id`,
+      [orderId, order.supplier_id, order.product_name],
+    );
+    const linkedInventoryId = invRows.rows[0]?.id;
+
+    if (!linkedInventoryId) {
+      console.warn(`[orderLifecycle] No inventory match found for order ${orderId} — stock not deducted`);
+    }
+
+    if (linkedInventoryId) {
+      await client.query(
+        `UPDATE public.stockholder_inventory
+         SET quantity_available = GREATEST(0, quantity_available - $1),
+             is_available = CASE WHEN (quantity_available - $1) <= 0 THEN false ELSE is_available END
+         WHERE id = $2`,
+        [order.quantity, linkedInventoryId],
+      );
+      // Persist the link so reviews and future deductions target this item
+      if (!order.inventory_id) {
+        await client.query(`UPDATE orders SET inventory_id = $1 WHERE id = $2`, [
+          linkedInventoryId,
+          orderId,
+        ]);
+      }
+    }
 
     // Notify shop owner: delivery completed
     // Look up inventory_id for the product so Flutter can attach the review to it

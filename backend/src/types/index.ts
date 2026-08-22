@@ -86,6 +86,7 @@ export interface OrderItem {
   demandId: string | null;
   shopOwnerId: string;
   supplierId: string;
+  inventoryId?: string | null;
   productName: string;
   quantity: number;
   unit: string;

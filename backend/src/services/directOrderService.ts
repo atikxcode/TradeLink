@@ -23,6 +23,7 @@ function mapOrderRow(row: any): OrderItem {
     demandId: row.demand_id ?? null,
     shopOwnerId: row.shop_owner_id,
     supplierId: row.supplier_id,
+    inventoryId: row.inventory_id ?? null,
     productName: row.product_name,
     quantity: Number(row.quantity),
     unit: row.unit,
@@ -79,23 +80,20 @@ export async function createDirectOrder(
     // 2. Calculate total
     const totalAmount = stock.price_per_unit * payload.quantity;
 
-    // 3. Deduct stock
-    await client.query(
-      `UPDATE stockholder_inventory
-       SET quantity_available = quantity_available - $1
-       WHERE id = $2`,
-      [payload.quantity, payload.stockId],
-    );
+    // NOTE: Stock is NOT deducted here. Quantity is subtracted from
+    // inventory only when delivery OTP is verified (orderLifecycleService)
+    // so failed/cancelled orders never lose stock.
 
-    // 4. Create the order as PENDING (supplier must accept)
+    // 3. Create the order as PENDING (supplier must accept)
     const { rows: orderRows } = await client.query(
       `INSERT INTO orders
-         (shop_owner_id, supplier_id, product_name, quantity, unit, total_amount, status, delivery_address)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)
+         (shop_owner_id, supplier_id, inventory_id, product_name, quantity, unit, total_amount, status, delivery_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
        RETURNING *`,
       [
         shopOwnerId,
         stock.stockholder_id,
+        stock.id,
         stock.custom_product_name,
         payload.quantity,
         stock.unit,
@@ -104,7 +102,7 @@ export async function createDirectOrder(
       ],
     );
 
-    // 5. Notify the supplier
+    // 4. Notify the supplier
     await client.query(
       `INSERT INTO notifications (user_id, title, subtitle, type)
        VALUES ($1, $2, $3, 'new_order')`,
