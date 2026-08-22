@@ -2,6 +2,7 @@ class MarketplaceProductModel {
   final String stockId;
   final String stockholderId;
   final String supplierName;
+  final String? supplierPhone;
   final String? warehouseAddress;
   final double? supplierLat;
   final double? supplierLng;
@@ -21,6 +22,7 @@ class MarketplaceProductModel {
     required this.stockId,
     required this.stockholderId,
     required this.supplierName,
+    this.supplierPhone,
     this.warehouseAddress,
     this.supplierLat,
     this.supplierLng,
@@ -58,6 +60,7 @@ class MarketplaceProductModel {
       stockId: json['stockId'] as String? ?? json['stock_id'] as String? ?? '',
       stockholderId: json['stockholderId'] as String? ?? json['stockholder_id'] as String? ?? '',
       supplierName: json['supplierName'] as String? ?? json['supplier_name'] as String? ?? 'Unknown Supplier',
+      supplierPhone: json['supplierPhone'] as String? ?? json['supplier_phone'] as String?,
       warehouseAddress: json['warehouseAddress'] as String? ?? json['warehouse_address'] as String?,
       supplierLat: _toDouble(json['supplierLat'] ?? json['supplier_lat']),
       supplierLng: _toDouble(json['supplierLng'] ?? json['supplier_lng']),

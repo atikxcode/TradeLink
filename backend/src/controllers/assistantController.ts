@@ -5,12 +5,145 @@ import {
   ChatIntent,
   classifyIntent,
   parseProductIntent,
+  parseBulkOrderItems,
+  findSupplierByName,
+  getSupplierCatalog,
   searchSuppliers,
   searchAllSuppliers,
   generateGreetingResponse,
   generateSearchResponse,
   generateUnknownResponse,
 } from '../services/assistantService.js';
+import { db } from '../db/pool.js';
+
+/**
+ * POST /assistant/order
+ *
+ * Chatbot bulk-order pipeline: inserts each parsed item into the demands
+ * table with status 'open', targeted at the chosen supplier so it appears
+ * as an Accept/Decline card on that supplier's Nearby Demands feed.
+ * Body: { stockholderId: string, items: [{ name, quantity }] }
+ */
+export const placeChatbotOrderHandler = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const shopOwnerId = req.userId!;
+    const { stockholderId, items } = req.body as {
+      stockholderId?: string;
+      items?: { name?: string; quantity?: number }[];
+    };
+
+    if (!stockholderId || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'Missing supplier ID or order items.',
+      });
+      return;
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Stamp the buyer's coordinates so nearby suppliers discover
+      // this demand via proximity filtering.
+      const ownerRes = await client.query<{
+        latitude: number | null;
+        longitude: number | null;
+      }>(`SELECT latitude, longitude FROM public.users WHERE id = $1`, [
+        shopOwnerId,
+      ]);
+      const ownerLat = ownerRes.rows[0]?.latitude ?? null;
+      const ownerLng = ownerRes.rows[0]?.longitude ?? null;
+
+      const createdDemands: string[] = [];
+
+      for (const item of items) {
+        const rawName = (item.name ?? '').trim();
+        const quantity = Number(item.quantity);
+        if (!rawName || !Number.isFinite(quantity) || quantity <= 0) continue;
+
+        // Resolve product specs from the target supplier's inventory
+        const productRes = await client.query<{
+          custom_product_name: string;
+          category: string;
+          price_per_unit: string | number;
+          unit: string;
+        }>(
+          `SELECT custom_product_name, category, price_per_unit, unit
+           FROM public.stockholder_inventory
+           WHERE stockholder_id = $1
+             AND LOWER(custom_product_name) = LOWER($2)
+           LIMIT 1`,
+          [stockholderId, rawName],
+        );
+
+        const match = productRes.rows[0];
+        const productName = match?.custom_product_name ?? rawName;
+        const category = match?.category ?? 'Grocery';
+        const unit = match?.unit ?? 'pcs';
+        const targetPrice =
+          match?.price_per_unit != null ? Number(match.price_per_unit) : null;
+
+        const demandRes = await client.query<{ id: string }>(
+          `INSERT INTO public.demands
+             (shop_owner_id, target_supplier_id, product_name, category,
+              quantity, unit, target_price, notes, status,
+              latitude, longitude)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'open', $9, $10)
+           RETURNING id`,
+          [
+            shopOwnerId,
+            stockholderId,
+            productName,
+            category,
+            quantity,
+            unit,
+            targetPrice,
+            'Placed via TradeLink Assistant',
+            ownerLat,
+            ownerLng,
+          ],
+        );
+        createdDemands.push(demandRes.rows[0].id);
+      }
+
+      if (createdDemands.length === 0) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          success: false,
+          error: 'No valid items to order.',
+        });
+        return;
+      }
+
+      // Notify the target supplier about the incoming request(s)
+      await client.query(
+        `INSERT INTO notifications (user_id, title, subtitle, type)
+         VALUES ($1, $2, $3, 'new_demand')`,
+        [
+          stockholderId,
+          'New order request via Assistant',
+          `${createdDemands.length} item request${createdDemands.length > 1 ? 's' : ''} from a nearby shop — review in Nearby Demands.`,
+        ],
+      );
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        data: {
+          message: `${createdDemands.length} order request${createdDemands.length > 1 ? 's' : ''} sent to the supplier.`,
+          demandIds: createdDemands,
+        },
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+);
 import { getDemandTrends, getSupplyTrends, generateForecastAnalysis } from '../services/forecastService.js';
 
 /**
@@ -46,6 +179,57 @@ export const assistantChatHandler = asyncHandler(
 
     // ── Route to handler ─────────────────────────────────────────
     try {
+      // ── 1. Multi-item bulk order syntax ("oil=10", "kino 5 kg oil",
+      //       "oil 10 ltr lagbe", "5 kg chawl dorkar", ...) ─────────
+      const multiItems = parseBulkOrderItems(trimmed);
+      if (multiItems) {
+        const resolved = await Promise.all(
+          multiItems.map(async (entry) => {
+            const intent = parseProductIntent(entry.name);
+            intent.productName = entry.name;
+            const matches = await searchSuppliers(intent, lat, lng);
+            return { name: entry.name, quantity: entry.quantity, match: matches[0] ?? null };
+          }),
+        );
+
+        const estimatedTotal = resolved.reduce(
+          (sum, r) => sum + (r.match ? r.match.pricePerUnit * r.quantity : 0),
+          0,
+        );
+        const foundCount = resolved.filter((r) => r.match).length;
+
+        res.json({
+          success: true,
+          data: {
+            reply:
+              foundCount === 0
+                ? 'None of those items are available nearby right now. Try different product names.'
+                : `Please confirm your ${foundCount}-item order details below. Estimated total: ৳${estimatedTotal.toFixed(2)}.`,
+            intentType: 'MULTI_ITEM_ORDER',
+            items: resolved.map((r) => ({
+              name: r.name,
+              quantity: r.quantity,
+              match: r.match
+                ? {
+                    stockId: r.match.stockId,
+                    stockholderId: r.match.stockholderId,
+                    productName: r.match.productName,
+                    storeName: r.match.supplierName,
+                    price: r.match.pricePerUnit,
+                    unit: r.match.unit,
+                    quantityAvailable: r.match.quantityAvailable,
+                    distanceKm: r.match.distanceKm,
+                    rating: r.match.rating,
+                    ratingCount: r.match.ratingCount,
+                  }
+                : null,
+            })),
+            estimatedTotal,
+          },
+        });
+        return;
+      }
+
       switch (intent) {
         case ChatIntent.GREETING: {
           res.json({
@@ -60,6 +244,52 @@ export const assistantChatHandler = asyncHandler(
         }
 
         case ChatIntent.PRODUCT_SEARCH: {
+          // ── Supplier name lookup (e.g. "md firoz") ──────────────
+          const supplier = await findSupplierByName(trimmed);
+          if (supplier) {
+            const catalog = await getSupplierCatalog(
+              supplier.stockholderId,
+              lat,
+              lng,
+            );
+            if (catalog.length > 0) {
+              const formattedCatalog = catalog.map((s, idx) => ({
+                rank: idx + 1,
+                storeName: s.supplierName,
+                location: s.warehouseAddress || 'Unknown',
+                distance: `${s.distanceKm} km`,
+                distanceKm: s.distanceKm,
+                price: s.pricePerUnit,
+                unit: s.unit,
+                rating: s.rating,
+                ratingCount: s.ratingCount,
+                stockBadge: 'In stock',
+                inStock: true,
+                isBestPrice: s.isBestPrice,
+                imageUrl: s.imageUrl,
+                stockId: s.stockId,
+                stockholderId: s.stockholderId,
+                productName: s.productName,
+                quantityAvailable: s.quantityAvailable,
+              }));
+              res.json({
+                success: true,
+                data: {
+                  reply: `Found supplier "${supplier.businessName}". Here are their ${catalog.length} available products — tap Order Now on any item.`,
+                  suppliers: formattedCatalog,
+                  intentType: 'SUPPLIER_CATALOG',
+                  supplier: {
+                    supplierId: supplier.stockholderId,
+                    businessName: supplier.businessName,
+                    phone: supplier.phone,
+                    address: supplier.address,
+                  },
+                },
+              });
+              return;
+            }
+          }
+
           const productIntent = parseProductIntent(trimmed);
           const suppliers = await searchSuppliers(productIntent, lat, lng);
 
@@ -70,6 +300,7 @@ export const assistantChatHandler = asyncHandler(
             storeName: s.supplierName,
             location: s.warehouseAddress || 'Unknown',
             distance: `${s.distanceKm} km`,
+            distanceKm: s.distanceKm,
             price: s.pricePerUnit,
             unit: s.unit,
             rating: s.rating,

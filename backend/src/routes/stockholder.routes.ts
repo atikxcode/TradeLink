@@ -42,7 +42,7 @@ import {
   getProductDetailHandler,
   getProductsByCategoryHandler,
 } from '../controllers/marketplaceController.js';
-import { assistantChatHandler } from '../controllers/assistantController.js';
+import { assistantChatHandler, placeChatbotOrderHandler } from '../controllers/assistantController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
 import { requireSupplier } from '../middleware/auth.js';
 
@@ -96,6 +96,7 @@ router.post('/marketplace/category/:category', getProductsByCategoryHandler);
 
 // ---- AI Assistant ----
 router.post('/assistant/chat', assistantChatHandler);
+router.post('/assistant/order', placeChatbotOrderHandler);
 router.post('/assistant/forecast', forecastHandler);
 
 // ---- Supplier (Stockholder) endpoints ----

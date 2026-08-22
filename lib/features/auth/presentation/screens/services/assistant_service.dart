@@ -5,12 +5,39 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/supplier_result.dart';
 
+/// One parsed line of a multi-item bulk order (e.g. "oil=10").
+class PendingOrderItem {
+  final String name;
+  final double quantity;
+  final SupplierResult? match;
+
+  const PendingOrderItem({
+    required this.name,
+    required this.quantity,
+    this.match,
+  });
+
+  factory PendingOrderItem.fromJson(Map<String, dynamic> json) {
+    final matchJson = json['match'] as Map<String, dynamic>?;
+    return PendingOrderItem(
+      name: json['name']?.toString() ?? '',
+      quantity:
+          (json['quantity'] is num) ? (json['quantity'] as num).toDouble() : 0,
+      match: matchJson != null ? SupplierResult.fromJson(matchJson) : null,
+    );
+  }
+
+  double? get subtotal =>
+      match != null ? match!.price * quantity : null;
+}
+
 /// Chat message model for the TradeLink Assistant.
 class AssistantMessage {
   final String text;
   final bool isUser;
   final bool isTyping;
   final List<SupplierResult>? suppliers;
+  final List<PendingOrderItem>? pendingItems;
   final DateTime time;
 
   AssistantMessage({
@@ -18,6 +45,7 @@ class AssistantMessage {
     required this.isUser,
     this.isTyping = false,
     this.suppliers,
+    this.pendingItems,
     DateTime? time,
   }) : time = time ?? DateTime.now();
 }
@@ -60,6 +88,22 @@ class AssistantService {
         if (body['success'] == true) {
           final data = body['data'] as Map<String, dynamic>;
           final reply = data['reply'] as String? ?? '';
+          final intentType = data['intentType']?.toString();
+
+          // Multi-item bulk order confirmation trigger
+          if (intentType == 'MULTI_ITEM_ORDER') {
+            final itemsJson = data['items'] as List<dynamic>? ?? [];
+            final items = itemsJson
+                .map((e) =>
+                    PendingOrderItem.fromJson(e as Map<String, dynamic>))
+                .toList();
+            return AssistantMessage(
+              text: reply,
+              isUser: false,
+              pendingItems: items,
+            );
+          }
+
           final suppliersJson = data['suppliers'] as List<dynamic>? ?? [];
           final suppliers = suppliersJson
               .map((s) => SupplierResult.fromJson(s as Map<String, dynamic>))

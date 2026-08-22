@@ -3,6 +3,7 @@ class SupplierResult {
   final String storeName;
   final String location;
   final String distance;
+  final double? distanceKm;
   final double price;
   final String unit;
   final double rating;
@@ -12,8 +13,8 @@ class SupplierResult {
   final bool isBestPrice;
   final String? imageUrl;
   final String? stockId;
-  final String? stockholderId;
-  final String? productName;
+  final String stockholderId;
+  final String productName;
   final double quantityAvailable;
 
   const SupplierResult({
@@ -21,6 +22,7 @@ class SupplierResult {
     required this.storeName,
     required this.location,
     required this.distance,
+    this.distanceKm,
     required this.price,
     required this.unit,
     required this.rating,
@@ -30,8 +32,8 @@ class SupplierResult {
     this.isBestPrice = false,
     this.imageUrl,
     this.stockId,
-    this.stockholderId,
-    this.productName,
+    this.stockholderId = '',
+    this.productName = 'Unnamed Product',
     this.quantityAvailable = 0,
   });
 
@@ -41,6 +43,12 @@ class SupplierResult {
       storeName: json['storeName'] as String? ?? 'Unknown',
       location: json['location'] as String? ?? 'Unknown',
       distance: json['distance'] as String? ?? 'N/A',
+      distanceKm: json['distanceKm'] != null
+          ? _toDouble(json['distanceKm'])
+          : double.tryParse(
+              (json['distance']?.toString() ?? '')
+                  .replaceAll(RegExp(r'[^0-9.]'), ''),
+            ),
       price: _toDouble(json['price']),
       unit: json['unit'] as String? ?? 'pcs',
       rating: _toDouble(json['rating'], 5.0),
@@ -50,8 +58,11 @@ class SupplierResult {
       isBestPrice: json['isBestPrice'] as bool? ?? false,
       imageUrl: json['imageUrl'] as String?,
       stockId: json['stockId'] as String?,
-      stockholderId: json['stockholderId'] as String?,
-      productName: json['productName'] as String?,
+      stockholderId: json['stockholderId'] as String? ?? json['stockholder_id'] as String? ?? '',
+      productName: (json['productName'] as String?) ??
+          (json['product_name'] as String?) ??
+          (json['custom_product_name'] as String?) ??
+          'Unnamed Product',
       quantityAvailable: _toDouble(json['quantityAvailable']),
     );
   }

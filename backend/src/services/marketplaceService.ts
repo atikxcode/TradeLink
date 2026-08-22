@@ -8,6 +8,7 @@ export interface MarketplaceProductRow {
   warehouse_address: string | null;
   supplier_lat: number | null;
   supplier_lng: number | null;
+  supplier_phone?: string | null;
   product_name: string;
   category: string;
   price_per_unit: number;
@@ -28,6 +29,7 @@ export function mapMarketplaceProductRow(row: MarketplaceProductRow): Marketplac
     warehouseAddress: row.warehouse_address,
     supplierLat: row.supplier_lat,
     supplierLng: row.supplier_lng,
+    supplierPhone: row.supplier_phone ?? null,
     productName: row.product_name,
     category: row.category,
     pricePerUnit: row.price_per_unit,
@@ -189,6 +191,7 @@ export async function getProductDetail(
       COALESCE(u.address, '') AS warehouse_address,
       u.latitude AS supplier_lat,
       u.longitude AS supplier_lng,
+      COALESCE(u.phone_number, '') AS supplier_phone,
       si.custom_product_name AS product_name,
       si.category,
       si.price_per_unit,

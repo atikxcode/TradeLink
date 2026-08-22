@@ -66,6 +66,7 @@ const SORT_KEYWORDS: Record<string, AssistantIntent['sortBy']> = {
   nearest: 'distance',
   nearby: 'distance',
   closest: 'distance',
+  distance: 'distance',
   rated: 'rating',
   'best rated': 'rating',
   top: 'rating',
@@ -98,10 +99,225 @@ const CATEGORY_KEYWORDS: Record<string, string> = {
 };
 
 const FILLER_WORDS =
-  /\b(find|get|show|search|where|can|i|me|need|want|buy|look|looking for|sort|by|only|within|less than|under|max|and|up|the|a|an|some|any|please|plz)\b/gi;
+  /\b(find|get|show|search|where|can|i|me|need|want|buy|look|looking for|sort|by|only|within|less than|under|max|and|up|the|a|an|some|any|please|plz|instead|results|filter|sorted)\b/gi;
+
+// ── Multi-item order parsing ("oil=10, rice=22") ──────────────────
+
+export interface MultiItemEntry {
+  name: string;
+  quantity: number;
+}
+
+/**
+ * Detects bulk order syntax like "oil=10, rice=22".
+ * Returns null when the message doesn't use (valid) multi-item syntax.
+ */
+export function parseMultiItemOrder(message: string): MultiItemEntry[] | null {
+  if (!message.includes('=')) return null;
+  const entries: MultiItemEntry[] = [];
+  for (const part of message.split(',')) {
+    const [rawName, rawQty] = part.split('=');
+    const name = (rawName ?? '').trim().toLowerCase();
+    const quantity = parseFloat((rawQty ?? '').trim());
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) return null;
+    entries.push({ name, quantity });
+  }
+  return entries.length > 0 ? entries : null;
+}
+
+// ── Natural / Banglish order parsing ──────────────────────────────
+// Supports flexible word orders:
+//   "kino 5 kg oil"      (verb -> qty -> unit -> product)
+//   "buy 5kg rice"       (verb -> qtyunit -> product)
+//   "5 kg chawl dorkar"  (qty -> unit -> product -> verb)
+//   "oil 10 ltr lagbe"   (product -> qty -> unit -> verb)
+//   "order 10l oil"      (verb -> qtyunit -> product)
+// Units: litre/liter/ltr/l/litter, kg/kgs/kilogram, gram/gm, pcs/pieces,
+//        ta, dostha/dosta.
+
+const ORDER_TRIGGERS =
+  '(?:kino|kinbo|krbo|kine\\s+labo|dorkar|lagbe|chai|chaile|aamake\\s+dao|amar\\s+dao|dao|deu|diyo|order|buy|need|want)';
+const UNIT_WORDS =
+  'dostha|dosta|litres|litre|liter|litter|ltrs|ltr|kilograms|kilogram|kgs|kg|grams|gram|gm|pieces|piece|pcs|ta|l';
+
+/** Residual intent words stripped out of captured product names. */
+const RESIDUAL_WORDS = /\b(aamake|amar|please|plz|kino|kinbo|krbo|dorkar|lagbe|chai|chaile|dao|deu|diyo|order|buy|need|want)\b/gi;
+
+export interface ParsedOrderItem {
+  name: string;
+  quantity: number;
+}
+
+function cleanupItemName(raw: string): string | null {
+  const cleaned = raw
+    .replace(RESIDUAL_WORDS, ' ')
+    .replace(new RegExp(`\\b(?:${UNIT_WORDS})\\b`, 'gi'), ' ')
+    .replace(/[^a-zA-Z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length >= 2 ? cleaned : null;
+}
+
+/**
+ * Parse ONE text segment as a natural-language order item.
+ * Returns null when the segment isn't an order phrase.
+ */
+export function parseNaturalOrderItem(
+  segment: string,
+): ParsedOrderItem | null {
+  let input = segment.trim().toLowerCase();
+  if (!input || !/[0-9]/.test(input) || /\bkm\b|\bkilometer/.test(input)) {
+    return null;
+  }
+  // Banglish possessive wrappers: "aamake ... dao", "amar ... lagbe"
+  input = input.replace(/^(?:aamake|amar)\s+/, '');
+
+  // Pattern A: [verb] -> qty -> [unit] -> product
+  // e.g. "kino 5 kg oil", "buy 5kg rice", "5 kg chawl dorkar", "order 10l oil"
+  const patternA = new RegExp(
+    `^(?:${ORDER_TRIGGERS})?\\s*(\\d+(?:\\.\\d+)?)\\s*(?:${UNIT_WORDS})?\\s+([a-z\\s]+)$`,
+    'i',
+  );
+  // Pattern B: product -> qty -> [unit] -> [verb]
+  // e.g. "oil 10 ltr lagbe", "rice 10kg order", "napa 3 ta dao"
+  const patternB = new RegExp(
+    `^([a-z\\s]+?)\\s+(\\d+(?:\\.\\d+)?)\\s*(?:${UNIT_WORDS})?\\s*(?:${ORDER_TRIGGERS})?$`,
+    'i',
+  );
+
+  let productName: string | null = null;
+  let quantity: number | null = null;
+
+  const matchA = input.match(patternA);
+  if (matchA) {
+    quantity = parseFloat(matchA[1]);
+    productName = cleanupItemName(matchA[2]);
+  } else {
+    const matchB = input.match(patternB);
+    if (matchB) {
+      productName = cleanupItemName(matchB[1]);
+      quantity = parseFloat(matchB[2]);
+    }
+  }
+
+  if (!productName || quantity == null || !Number.isFinite(quantity) || quantity <= 0) {
+    return null;
+  }
+  return { name: productName, quantity };
+}
+
+/**
+ * Parse any supported bulk-order syntax into structured items:
+ * key-value pairs ("oil=10, rice=22") or natural/Banglish phrases
+ * ("kino 5 kg oil", "oil 10 ltr lagbe"), including comma-separated mixes.
+ */
+export function parseBulkOrderItems(message: string): MultiItemEntry[] | null {
+  if (message.includes('=')) return parseMultiItemOrder(message);
+
+  const entries: MultiItemEntry[] = [];
+  for (const segment of message.split(',')) {
+    const parsed = parseNaturalOrderItem(segment);
+    if (parsed) entries.push(parsed);
+  }
+  return entries.length > 0 ? entries : null;
+}
+
+/**
+ * Find a supplier (user with role='supplier') whose business or full name
+ * matches the given free-text query.
+ */
+export async function findSupplierByName(
+  query: string,
+): Promise<{
+  stockholderId: string;
+  businessName: string;
+  phone: string;
+  address: string;
+} | null> {
+  const { rows } = await db.query(
+    `SELECT id AS stockholder_id,
+            COALESCE(business_name, full_name, 'Supplier') AS business_name,
+            COALESCE(phone_number, '') AS phone,
+            COALESCE(address, '') AS address
+     FROM public.users
+     WHERE role = 'supplier'
+       AND (
+         LOWER(COALESCE(business_name, '')) LIKE LOWER($1)
+         OR LOWER(full_name) LIKE LOWER($1)
+       )
+     LIMIT 1`,
+    [`%${query}%`],
+  );
+  if (rows.length === 0) return null;
+  return {
+    stockholderId: rows[0].stockholder_id,
+    businessName: rows[0].business_name,
+    phone: rows[0].phone,
+    address: rows[0].address,
+  };
+}
+
+/**
+ * Fetch all available inventory items for a supplier, formatted exactly
+ * like PRODUCT_SEARCH results so the Flutter client can reuse its cards.
+ */
+export async function getSupplierCatalog(
+  stockholderId: string,
+  shopLat: number,
+  shopLng: number,
+): Promise<AssistantSupplierResult[]> {
+  const sql = `
+    SELECT
+      si.id AS stock_id,
+      si.stockholder_id,
+      COALESCE(u.full_name, 'Unknown Supplier') AS supplier_name,
+      COALESCE(u.address, '') AS warehouse_address,
+      COALESCE(NULLIF(si.custom_product_name, ''), 'Unnamed Product') AS product_name,
+      si.category,
+      si.price_per_unit,
+      si.quantity_available,
+      si.unit,
+      si.image_url,
+      COALESCE(si.rating, 5.0) AS rating,
+      COALESCE(si.review_count, 0) AS rating_count,
+      ${haversineSql()} AS distance_km
+    FROM public.stockholder_inventory si
+    JOIN public.users u ON si.stockholder_id = u.id
+    WHERE si.stockholder_id = $3
+      AND si.is_available = true
+      AND si.quantity_available > 0
+    ORDER BY si.price_per_unit ASC
+    LIMIT 20
+  `;
+  let rows: any[] = [];
+  try {
+    const result = await db.query(sql, [shopLat, shopLng, stockholderId]);
+    rows = result.rows;
+  } catch (dbErr: any) {
+    console.error('[assistant] getSupplierCatalog error:', dbErr?.message ?? dbErr);
+    return [];
+  }
+  const bestPrice = rows.length > 0 ? rows[0].price_per_unit : 0;
+  return rows.map((row) => ({
+    stockId: row.stock_id,
+    stockholderId: row.stockholder_id,
+    supplierName: row.supplier_name,
+    warehouseAddress: row.warehouse_address,
+    productName: row.product_name,
+    category: row.category,
+    pricePerUnit: row.price_per_unit,
+    quantityAvailable: row.quantity_available,
+    unit: row.unit,
+    imageUrl: row.image_url,
+    distanceKm: row.distance_km,
+    rating: Number(row.rating) || 5.0,
+    ratingCount: Number(row.rating_count) || 0,
+    isBestPrice: row.price_per_unit === bestPrice,
+  }));
+}
 
 const FILTER_PHRASES =
-  /\b(cheapest|nearest|closest|best price|low price|nearby|near|close|top rated|best rated|4\.5|4 star|★|sort by|sorted by|order by|ordered by|within|less than|under|max|maximum)\b/gi;
+  /\b(cheapest|nearest|closest|best price|low price|nearby|near|close|top rated|best rated|4\.5|4 star|★|sort by|sorted by|order by|ordered by|within|less than|under|max|maximum|distance)\b/gi;
 
 // ── Parse product search intent from free text ─────────────────────
 
@@ -193,7 +409,7 @@ export async function searchSuppliers(
       si.stockholder_id,
       COALESCE(u.full_name, 'Unknown Supplier') AS supplier_name,
       COALESCE(u.address, '') AS warehouse_address,
-      si.custom_product_name AS product_name,
+      COALESCE(NULLIF(si.custom_product_name, ''), 'Unnamed Product') AS product_name,
       si.category,
       si.price_per_unit,
       si.quantity_available,
@@ -293,7 +509,7 @@ export async function searchAllSuppliers(
       si.stockholder_id,
       COALESCE(u.full_name, 'Unknown Supplier') AS supplier_name,
       COALESCE(u.address, '') AS warehouse_address,
-      si.custom_product_name AS product_name,
+      COALESCE(NULLIF(si.custom_product_name, ''), 'Unnamed Product') AS product_name,
       si.category,
       si.price_per_unit,
       si.quantity_available,
