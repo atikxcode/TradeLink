@@ -11,6 +11,8 @@ export interface StockRow {
   quantity_available: number;
   unit: string;
   is_available: boolean;
+  image_url: string | null;
+  delivery_radius_km: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -26,6 +28,8 @@ export function mapStockRow(row: StockRow): StockItem {
     quantityAvailable: row.quantity_available,
     unit: row.unit,
     isAvailable: row.is_available,
+    imageUrl: row.image_url,
+    deliveryRadiusKm: row.delivery_radius_km,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -38,8 +42,8 @@ export async function createStock(
   const { rows } = await db.query<StockRow>(
     `INSERT INTO stockholder_inventory
        (stockholder_id, master_product_id, custom_product_name, category,
-        price_per_unit, quantity_available, unit, is_available)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+        price_per_unit, quantity_available, unit, is_available, image_url, delivery_radius_km)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9)
      RETURNING *`,
     [
       userId,
@@ -49,6 +53,8 @@ export async function createStock(
       payload.pricePerUnit,
       payload.quantity,
       payload.unit,
+      payload.imageUrl ?? null,
+      payload.deliveryRadiusKm ?? 10,
     ],
   );
   return mapStockRow(rows[0]);
@@ -68,7 +74,7 @@ export async function listStock(userId: string): Promise<StockItem[]> {
   const { rows } = await db.query<StockRow>(
     `SELECT id, stockholder_id, master_product_id, custom_product_name,
             category, price_per_unit, quantity_available, unit,
-            is_available, created_at, updated_at
+            is_available, image_url, delivery_radius_km, created_at, updated_at
      FROM stockholder_inventory
      WHERE stockholder_id = $1 AND is_available = true
      ORDER BY updated_at DESC`,
@@ -83,6 +89,8 @@ export interface UpdateStockPayload {
   pricePerUnit?: number;
   quantity?: number;
   unit?: string;
+  imageUrl?: string;
+  deliveryRadiusKm?: number;
 }
 
 export async function updateStock(
@@ -113,6 +121,14 @@ export async function updateStock(
   if (payload.unit !== undefined) {
     fields.push(`unit = $${idx++}`);
     values.push(payload.unit);
+  }
+  if (payload.imageUrl !== undefined) {
+    fields.push(`image_url = $${idx++}`);
+    values.push(payload.imageUrl);
+  }
+  if (payload.deliveryRadiusKm !== undefined) {
+    fields.push(`delivery_radius_km = $${idx++}`);
+    values.push(payload.deliveryRadiusKm);
   }
 
   if (fields.length === 0) return null;

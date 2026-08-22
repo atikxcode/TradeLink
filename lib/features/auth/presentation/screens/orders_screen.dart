@@ -1,7 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/config/supabase_config.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -25,23 +27,31 @@ class _OrdersScreenState extends State<OrdersScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id');
-      
       if (userId == null) {
         if (mounted) setState(() => _isLoading = false);
         return;
       }
 
-      final response = await SupabaseConfig.client
-          .from(SupabaseConfig.tableOrders)
-          .select()
-          .or('shop_owner_id.eq.$userId,supplier_id.eq.$userId')
-          .order('created_at', ascending: false);
-          
+      final uri = Uri.parse('http://localhost:8081/api/v1/orders/shop-owner');
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-User-Id': '$userId::shop_owner',
+        },
+      ).timeout(const Duration(seconds: 15));
+
       if (mounted) {
-        setState(() {
-          _orders = List<Map<String, dynamic>>.from(response);
-          _isLoading = false;
-        });
+        final body = jsonDecode(response.body);
+        if (response.statusCode == 200 && body['success'] == true) {
+          setState(() {
+            _orders = List<Map<String, dynamic>>.from(body['data'] ?? []);
+            _isLoading = false;
+          });
+        } else {
+          setState(() => _isLoading = false);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -82,18 +92,21 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         border: Border.all(color: AppColors.inputBorder),
                       ),
                       child: const Center(
-                        child: Text(
-                          'No orders yet',
-                          style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-                        ),
+                        child: Text('No orders yet', style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
                       ),
                     )
                   else
-                    ..._orders.map((order) => _OrderItem(
-                          product: order['product_name'] ?? 'Unknown',
-                          quantity: '${order['quantity'] ?? 0} ${order['unit'] ?? ''}',
-                          totalAmount: order['total_amount'] ?? 0,
+                    ..._orders.map((order) => _ShopOwnerOrderCard(
+                          orderId: order['orderId'] ?? '',
+                          supplierName: order['supplierName'] ?? 'Supplier',
+                          productName: order['productName'] ?? 'Unknown',
+                          quantity: order['quantity'] ?? 0,
+                          unit: order['unit'] ?? '',
+                          totalAmount: order['totalAmount'] ?? 0,
                           status: order['status'] ?? 'pending',
+                          deliveryOtp: order['deliveryOtp'],
+                          deliveryAddress: order['deliveryAddress'],
+                          orderTime: order['orderTime'] ?? '',
                         )),
                 ],
               ),
@@ -102,31 +115,45 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 }
 
-class _OrderItem extends StatelessWidget {
-  final String product;
-  final String quantity;
+class _ShopOwnerOrderCard extends StatelessWidget {
+  final String orderId;
+  final String supplierName;
+  final String productName;
+  final dynamic quantity;
+  final String unit;
   final dynamic totalAmount;
   final String status;
+  final String? deliveryOtp;
+  final String? deliveryAddress;
+  final String orderTime;
 
-  const _OrderItem({
-    required this.product,
+  const _ShopOwnerOrderCard({
+    required this.orderId,
+    required this.supplierName,
+    required this.productName,
     required this.quantity,
+    required this.unit,
     required this.totalAmount,
     required this.status,
+    this.deliveryOtp,
+    this.deliveryAddress,
+    required this.orderTime,
   });
 
   Color get _statusColor {
     switch (status) {
       case 'accepted':
-        return AppColors.accepted;
+        return const Color(0xFFF59E0B);
+      case 'out_for_delivery':
+        return const Color(0xFF3B82F6);
       case 'in_transit':
         return const Color(0xFF3B82F6);
       case 'delivered':
-        return AppColors.delivered;
+        return const Color(0xFF10B981);
       case 'cancelled':
-        return AppColors.cancelled;
+        return const Color(0xFFEF4444);
       default:
-        return AppColors.pending;
+        return const Color(0xFF6B7280);
     }
   }
 
@@ -134,6 +161,8 @@ class _OrderItem extends StatelessWidget {
     switch (status) {
       case 'accepted':
         return 'Accepted';
+      case 'out_for_delivery':
+        return 'Out for Delivery';
       case 'in_transit':
         return 'In Transit';
       case 'delivered':
@@ -142,6 +171,20 @@ class _OrderItem extends StatelessWidget {
         return 'Cancelled';
       default:
         return 'Pending';
+    }
+  }
+
+  String _formatTime(String isoTime) {
+    if (isoTime.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(isoTime);
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    } catch (_) {
+      return isoTime;
     }
   }
 
@@ -163,7 +206,7 @@ class _OrderItem extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '$product ($quantity)',
+                  '$productName (${quantity.toStringAsFixed(0)} $unit)',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -171,7 +214,6 @@ class _OrderItem extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -180,25 +222,98 @@ class _OrderItem extends StatelessWidget {
                 ),
                 child: Text(
                   _statusLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _statusColor,
-                  ),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _statusColor),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            totalAmount is num
-                ? 'Total: ৳${(totalAmount as num).toStringAsFixed(2)}'
-                : 'Total: ৳$totalAmount',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
+            'From: $supplierName',
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
+          const SizedBox(height: 4),
+          Text(
+            totalAmount is num ? 'Total: ৳${(totalAmount as num).toStringAsFixed(2)}' : 'Total: ৳$totalAmount',
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ordered: ${_formatTime(orderTime)}',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+          ),
+          if (deliveryAddress != null && deliveryAddress!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Delivery: $deliveryAddress',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+          ],
+
+          // OTP section for out_for_delivery status
+          if (status == 'out_for_delivery' || status == 'in_transit') ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.local_shipping_outlined, size: 20, color: Color(0xFFD97706)),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Delivery is on the way!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (deliveryOtp != null && deliveryOtp!.isNotEmpty) ...[
+                    const Text(
+                      'Your delivery OTP:',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFF59E0B)),
+                      ),
+                      child: Text(
+                        deliveryOtp!,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 6,
+                          color: Color(0xFFD97706),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Share this code with the delivery person upon arrival.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                    ),
+                  ] else ...[
+                    const Text(
+                      'OTP will appear here once the supplier marks out for delivery.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

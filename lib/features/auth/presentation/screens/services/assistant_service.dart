@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/supplier_result.dart';
 
 /// Chat message model for the TradeLink Assistant.
@@ -22,79 +24,77 @@ class AssistantMessage {
 
 /// Serves the AI sourcing assistant.
 ///
-/// Uses the free Google Gemini API (`gemini-1.5-flash`) when a key is
-/// configured. Falls back to deterministic mock responses when no key is set,
-/// so the UI works without credentials.
+/// Sends the user's message to the backend `/assistant/chat` endpoint which
+/// performs intent classification, NLU parsing, and PostgreSQL search.
 class AssistantService {
-  AssistantService({String? apiKey})
-      : _model = apiKey == null
-            ? null
-            : GenerativeModel(
-                model: 'gemini-1.5-flash',
-                apiKey: apiKey,
-                generationConfig: GenerationConfig(temperature: 0.4),
-              );
+  static String get _baseUrl => 'http://localhost:8081/api/v1';
 
-  static const String _apiKeyEnv = 'GEMINI_API_KEY';
-  final GenerativeModel? _model;
-
-  static const String _systemPrompt =
-      'You are TradeLink Assistant, an AI sourcing assistant for shop owners. '
-      'When users ask for a product, respond with a friendly short answer and '
-      'a structured supplier list with price per kg, distance, and relative '
-      'price difference compared to the lowest option. Keep answers under 2 sentences.';
-
-  /// Resolve API key from the environment at runtime (web uses dart:js, but
-  /// for simplicity we read from String.fromEnvironment compile-time const).
-  static String? configuredApiKey() {
-    const key = String.fromEnvironment(_apiKeyEnv);
-    return key.isEmpty ? null : key;
+  static Future<Map<String, String>> _headers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id') ?? '';
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-User-Id': '$userId::shop_owner',
+    };
   }
 
-  /// Detect a product query from free text (mock NLU).
-  static String _detectProduct(String query) {
-    final lower = query.toLowerCase();
-    if (lower.contains('oil') || lower.contains('soybean')) {
-      return 'Soybean Oil, 20L';
-    }
-    if (lower.contains('sugar')) return 'Sugar, 30kg';
-    if (lower.contains('rice') || lower.contains('basmati')) {
-      return 'Rice — Basmati, 50kg';
-    }
-    return 'Rice — Basmati, 50kg';
-  }
-
-  /// Generates a reply. Uses Gemini when available, otherwise mock.
+  /// Generates a reply by calling the backend assistant endpoint.
   Future<AssistantMessage> generateReply(String userText) async {
-    final product = _detectProduct(userText);
-    final suppliers = SupplierResult.mockForProduct(product);
+    try {
+      final headers = await _headers();
+      final uri = Uri.parse('$_baseUrl/assistant/chat');
 
-    if (_model != null) {
-      try {
-        final response = await _model.generateContent([
-          Content.text(_systemPrompt),
-          Content.text(
-              'Shop owner asked: "$userText". Suggest a sourcing result for $product.'),
-        ]);
-        final text = response.text?.trim() ?? '';
-        return AssistantMessage(text: text, isUser: false, suppliers: suppliers);
-      } catch (e) {
-        debugPrint('Gemini error: $e');
-        return _mockReply(product, suppliers);
+      debugPrint('[AssistantService] Sending: "$userText"');
+
+      final response = await http.post(
+        uri,
+        headers: headers,
+        body: json.encode({'message': userText}),
+      ).timeout(const Duration(seconds: 15));
+
+      debugPrint('[AssistantService] Response ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = json.decode(response.body);
+        if (body['success'] == true) {
+          final data = body['data'] as Map<String, dynamic>;
+          final reply = data['reply'] as String? ?? '';
+          final suppliersJson = data['suppliers'] as List<dynamic>? ?? [];
+          final suppliers = suppliersJson
+              .map((s) => SupplierResult.fromJson(s as Map<String, dynamic>))
+              .toList();
+
+          return AssistantMessage(
+            text: reply,
+            isUser: false,
+            suppliers: suppliers.isNotEmpty ? suppliers : null,
+          );
+        }
       }
-    }
-    return _mockReply(product, suppliers);
-  }
 
-  AssistantMessage _mockReply(String product, List<SupplierResult> suppliers) {
-    final best = suppliers.first;
-    return AssistantMessage(
-      text:
-          'Found ${suppliers.length} suppliers for "$product". '
-          'Best price is ${best.priceLabel} at ${best.storeName}, '
-          '${best.distance} away.',
-      isUser: false,
-      suppliers: suppliers,
-    );
+      // If backend returns an error status, try to parse the error message
+      String errorMsg = 'Sorry, I had trouble processing that. Please try again.';
+      try {
+        final body = json.decode(response.body);
+        if (body['error'] != null) {
+          errorMsg = 'Error: ${body['error']}';
+        }
+      } catch (_) {}
+
+      return AssistantMessage(text: errorMsg, isUser: false);
+    } on TimeoutException {
+      debugPrint('[AssistantService] Timeout');
+      return AssistantMessage(
+        text: 'Request timed out. The server might be busy — please try again.',
+        isUser: false,
+      );
+    } catch (e) {
+      debugPrint('[AssistantService] Error: $e');
+      return AssistantMessage(
+        text: 'Network error — please check your connection and try again.',
+        isUser: false,
+      );
+    }
   }
 }

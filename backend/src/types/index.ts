@@ -25,8 +25,42 @@ export interface StockItem {
   quantityAvailable: number;
   unit: string;
   isAvailable: boolean;
+  imageUrl: string | null;
+  deliveryRadiusKm: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// ---- Marketplace Search Result ----
+
+export interface MarketplaceProduct {
+  stockId: string;
+  stockholderId: string;
+  supplierName: string;
+  warehouseAddress: string | null;
+  supplierLat: number | null;
+  supplierLng: number | null;
+  productName: string;
+  category: string;
+  pricePerUnit: number;
+  quantityAvailable: number;
+  unit: string;
+  imageUrl: string | null;
+  deliveryRadiusKm: number;
+  distanceKm: number;
+  rating: number;
+  ratingCount: number;
+}
+
+export interface MarketplaceSearchParams {
+  query: string;
+  shopLat: number | null;
+  shopLng: number | null;
+  category?: string;
+  maxDistance?: number;
+  sortBy?: 'distance' | 'price' | 'rating';
+  limit?: number;
+  offset?: number;
 }
 
 export interface NearbyDemand {
@@ -58,12 +92,14 @@ export interface OrderItem {
   totalAmount: number;
   status: OrderStatus;
   deliveryAddress: string | null;
+  deliveryOtp: string | null;
   createdAt: string;
 }
 
 export type OrderStatus =
   | 'pending'
   | 'accepted'
+  | 'out_for_delivery'
   | 'in_transit'
   | 'delivered'
   | 'cancelled';
@@ -87,6 +123,8 @@ export interface CreateStockPayload {
   quantity: number;
   unit: string;
   pricePerUnit: number;
+  imageUrl?: string;
+  deliveryRadiusKm?: number;
 }
 
 export interface HomeStatsResponse {

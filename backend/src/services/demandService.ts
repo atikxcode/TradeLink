@@ -51,6 +51,7 @@ export function mapOrderRow(row: OrderRow): OrderItem {
     totalAmount: row.total_amount,
     status: row.status as OrderItem['status'],
     deliveryAddress: row.delivery_address,
+    deliveryOtp: (row as any).delivery_otp ?? null,
     createdAt: row.created_at.toISOString(),
   };
 }

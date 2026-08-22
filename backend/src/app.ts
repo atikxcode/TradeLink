@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import path from 'path';
 import { env } from './config/env.js';
 import { requireAuth } from './middleware/auth.js';
 import stockholderRoutes from './routes/stockholder.routes.js';
@@ -8,6 +9,7 @@ export const app = express();
 
 app.use(cors({ origin: true }));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'TradeLink API is running' });
