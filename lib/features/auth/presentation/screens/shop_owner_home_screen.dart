@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../marketplace/presentation/screens/marketplace_search_screen.dart';
 import 'notifications_screen.dart';
 import 'post_demand_screen.dart';
 import 'stock_screen.dart';
@@ -20,6 +22,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   int _currentIndex = 0;
   String _businessName = 'My Shop';
   String _initials = 'SO';
+  int _unreadCount = 0;
 
 
 
@@ -50,12 +53,23 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     }
   }
 
+  Future<void> _fetchUnreadCount() async {
+    final data = await ApiService.get('/notifications/unread-count');
+    if (data != null && mounted) {
+      final count = data['count'];
+      setState(() {
+        _unreadCount = count is int ? count : int.tryParse('$count') ?? 0;
+      });
+    }
+  }
+
   late final List<Widget> _tabs;
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _fetchUnreadCount();
     _tabs = [
       ShopOwnerDashboard(
         onNavigateToPost: () => setState(() => _currentIndex = 2),
@@ -145,16 +159,16 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          InkWell(
-            onTap: () {
-              Navigator.push(
+          GestureDetector(
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const NotificationsScreen(),
+                  builder: (context) => const ShopOwnerNotificationsScreen(),
                 ),
               );
+              _fetchUnreadCount();
             },
-            borderRadius: BorderRadius.circular(12),
             child: Container(
               width: 44,
               height: 44,
@@ -162,12 +176,41 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
                 color: const Color(0xFFEEF0F3),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.notifications_outlined,
-                  size: 20,
-                  color: Color(0xFF374151),
-                ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.notifications_outlined,
+                    size: 20,
+                    color: Color(0xFF374151),
+                  ),
+                  if (_unreadCount > 0)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            _unreadCount > 99 ? '99+' : '$_unreadCount',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -346,6 +389,34 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryTeal,
                 side: const BorderSide(color: AppColors.primaryTeal),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MarketplaceSearchScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.storefront_outlined, size: 20),
+              label: const Text(
+                'Browse Marketplace',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF59E0B),
+                foregroundColor: Colors.white,
+                elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

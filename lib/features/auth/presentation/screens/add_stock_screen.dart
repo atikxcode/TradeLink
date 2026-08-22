@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../core/services/api_service.dart';
 import '../widgets/map_location_picker_dialog.dart';
@@ -32,6 +34,9 @@ class _AddStockScreenState extends State<AddStockScreen> {
   LatLng? _selectedLocation;
   String _selectedAddress = '';
   bool _isSaving = false;
+  Uint8List? _selectedImageBytes;
+  String _selectedImageName = '';
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void dispose() {
@@ -39,6 +44,73 @@ class _AddStockScreenState extends State<AddStockScreen> {
     _quantityController.dispose();
     _priceController.dispose();
     super.dispose();
+  }
+
+  void _pickImage(ImageSource source) async {
+    final picked = await _picker.pickImage(source: source, imageQuality: 80);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _selectedImageBytes = bytes;
+        _selectedImageName = picked.name;
+      });
+    }
+  }
+
+  void _clearImage() {
+    setState(() {
+      _selectedImageBytes = null;
+      _selectedImageName = '';
+    });
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text(
+                'Add product photo',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF0F766E)),
+                title: const Text('Take photo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF0F766E)),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _openMapPicker() async {
@@ -86,15 +158,20 @@ class _AddStockScreenState extends State<AddStockScreen> {
 
     setState(() => _isSaving = true);
 
-    final body = {
+    final fields = <String, String>{
       'customProductName': productName,
       'category': _selectedCategory,
-      'quantity': quantity,
+      'quantity': quantity.toString(),
       'unit': _selectedUnit,
-      'pricePerUnit': price,
+      'pricePerUnit': price.toString(),
     };
 
-    final result = await ApiService.post('/suppliers/stock', body: body);
+    final result = await ApiService.postMultipart(
+      '/suppliers/stock',
+      fields: fields,
+      imageBytes: _selectedImageBytes,
+      imageFileName: _selectedImageName,
+    );
 
     setState(() => _isSaving = false);
 
@@ -185,6 +262,10 @@ class _AddStockScreenState extends State<AddStockScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildLabel('Product photo'),
+          const SizedBox(height: 8),
+          _buildImagePicker(),
+          const SizedBox(height: 16),
           _buildDropdownField(
             label: 'Category',
             value: _selectedCategory,
@@ -245,6 +326,68 @@ class _AddStockScreenState extends State<AddStockScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildImagePicker() {
+    return GestureDetector(
+      onTap: _selectedImageBytes != null ? null : _showImageSourceDialog,
+      child: Container(
+        height: 140,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFFCBD5E1),
+            width: 1.5,
+            style: _selectedImageBytes != null ? BorderStyle.solid : BorderStyle.none,
+          ),
+        ),
+        child: _selectedImageBytes != null ? _buildImagePreview() : _buildImagePlaceholder(),
+      ),
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.add_a_photo_outlined, size: 36, color: Color(0xFF0F766E)),
+        const SizedBox(height: 8),
+        Text(
+          'Tap to upload product photo',
+          style: TextStyle(fontSize: 13, color: _slateMuted),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagePreview() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: GestureDetector(
+            onTap: _clearImage,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(
+                color: Color(0xFFEF4444),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.cancel, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

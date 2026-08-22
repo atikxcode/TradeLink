@@ -10,6 +10,11 @@ class SupplierResult {
   final String stockBadge;
   final bool inStock;
   final bool isBestPrice;
+  final String? imageUrl;
+  final String? stockId;
+  final String? stockholderId;
+  final String? productName;
+  final double quantityAvailable;
 
   const SupplierResult({
     required this.rank,
@@ -23,7 +28,48 @@ class SupplierResult {
     required this.stockBadge,
     required this.inStock,
     this.isBestPrice = false,
+    this.imageUrl,
+    this.stockId,
+    this.stockholderId,
+    this.productName,
+    this.quantityAvailable = 0,
   });
+
+  factory SupplierResult.fromJson(Map<String, dynamic> json) {
+    return SupplierResult(
+      rank: _toInt(json['rank']),
+      storeName: json['storeName'] as String? ?? 'Unknown',
+      location: json['location'] as String? ?? 'Unknown',
+      distance: json['distance'] as String? ?? 'N/A',
+      price: _toDouble(json['price']),
+      unit: json['unit'] as String? ?? 'pcs',
+      rating: _toDouble(json['rating'], 5.0),
+      ratingCount: _toInt(json['ratingCount']),
+      stockBadge: json['stockBadge'] as String? ?? 'In stock',
+      inStock: json['inStock'] as bool? ?? true,
+      isBestPrice: json['isBestPrice'] as bool? ?? false,
+      imageUrl: json['imageUrl'] as String?,
+      stockId: json['stockId'] as String?,
+      stockholderId: json['stockholderId'] as String?,
+      productName: json['productName'] as String?,
+      quantityAvailable: _toDouble(json['quantityAvailable']),
+    );
+  }
+
+  static double _toDouble(dynamic value, [double fallback = 0.0]) {
+    if (value == null) return fallback;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
+  static int _toInt(dynamic value, [int fallback = 0]) {
+    if (value == null) return fallback;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
+  }
 
   String get priceLabel => '৳${price.toStringAsFixed(0)} / $unit';
 

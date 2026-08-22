@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
@@ -16,11 +18,12 @@ class ApiService {
   static Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id') ?? '';
-    debugPrint('[ApiService] userId=$userId');
+    final role = prefs.getString('user_role') ?? 'supplier';
+    debugPrint('[ApiService] userId=$userId role=$role');
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-User-Id': '$userId::supplier',
+      'X-User-Id': '$userId::$role',
     };
   }
 
@@ -82,6 +85,47 @@ class ApiService {
       return null;
     } catch (e) {
       debugPrint('[ApiService] PATCH ERROR: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    Uint8List? imageBytes,
+    String? imageFileName,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+      final uri = Uri.parse('$_baseUrl$path');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['X-User-Id'] = '$userId::supplier';
+      request.fields.addAll(fields);
+
+      if (imageBytes != null && imageBytes.isNotEmpty) {
+        final fileName = imageFileName ?? 'product.jpg';
+        final ext = fileName.split('.').last.toLowerCase();
+        final mime = ext == 'png' ? 'image/png' : ext == 'webp' ? 'image/webp' : 'image/jpeg';
+        request.files.add(http.MultipartFile.fromBytes(
+          'image',
+          imageBytes,
+          filename: fileName,
+          contentType: MediaType.parse(mime),
+        ));
+      }
+
+      debugPrint('[ApiService] POST multipart $uri fields=$fields hasImage=${imageBytes != null}');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      debugPrint('[ApiService] POST multipart ${response.statusCode} ${response.body}');
+      final respBody = json.decode(response.body);
+      if ((response.statusCode == 200 || response.statusCode == 201) && respBody['success'] == true) {
+        return respBody['data'];
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ApiService] POST multipart ERROR: $e');
       return null;
     }
   }
