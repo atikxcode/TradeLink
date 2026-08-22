@@ -57,7 +57,7 @@ class _ShopOwnerNotificationsScreenState
     );
   }
 
-  void _showReviewModal(String productName, String? orderId, String? supplierId) {
+  void _showReviewModal(String productName, String? orderId, String? supplierId, String? inventoryId) {
     int selectedRating = 0;
     final commentController = TextEditingController();
     bool isSubmitting = false;
@@ -180,6 +180,7 @@ class _ShopOwnerNotificationsScreenState
                                 final result = await ApiService.post('/reviews', body: {
                                   'orderId': orderId,
                                   'supplierId': supplierId,
+                                  'inventoryId': inventoryId,
                                   'rating': selectedRating,
                                   'comment': commentController.text.isNotEmpty
                                       ? commentController.text
@@ -383,6 +384,7 @@ class _ShopOwnerNotificationsScreenState
           final productName = _extractProductName(subtitle);
           String? orderId = metadata['orderId'];
           String? supplierId = metadata['supplierId'];
+          String? inventoryId = metadata['inventoryId'];
 
           // If metadata missing (old notifications), resolve from backend
           if ((supplierId == null || supplierId.isEmpty) && productName.isNotEmpty) {
@@ -390,6 +392,7 @@ class _ShopOwnerNotificationsScreenState
             if (resolved != null) {
               orderId = resolved['orderId'];
               supplierId = resolved['supplierId'];
+              inventoryId = resolved['inventoryId'];
             }
           }
 
@@ -405,7 +408,7 @@ class _ShopOwnerNotificationsScreenState
             }
             return;
           }
-          _showReviewModal(productName, orderId, supplierId);
+          _showReviewModal(productName, orderId, supplierId, inventoryId);
         },
       );
     } else if (type == 'order_cancelled') {
@@ -446,9 +449,19 @@ class _ShopOwnerNotificationsScreenState
   }
 
   Map<String, String> _extractMetadata(String text) {
-    final match = RegExp(r'\|\|\|(.+?)\|\|\|(.+?)$').firstMatch(text);
-    if (match != null) {
-      return {'orderId': match.group(1) ?? '', 'supplierId': match.group(2) ?? ''};
+    // New format: ...|||orderId|||supplierId|||inventoryId
+    final match3 = RegExp(r'\|\|\|(.+?)\|\|\|(.+?)\|\|\|(.+?)$').firstMatch(text);
+    if (match3 != null) {
+      return {
+        'orderId': match3.group(1) ?? '',
+        'supplierId': match3.group(2) ?? '',
+        'inventoryId': match3.group(3) ?? '',
+      };
+    }
+    // Old format: ...|||orderId|||supplierId
+    final match2 = RegExp(r'\|\|\|(.+?)\|\|\|(.+?)$').firstMatch(text);
+    if (match2 != null) {
+      return {'orderId': match2.group(1) ?? '', 'supplierId': match2.group(2) ?? ''};
     }
     return {};
   }

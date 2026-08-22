@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../models/marketplace_product_model.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -23,6 +24,14 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   final TextEditingController _quantityController = TextEditingController(text: '1');
   bool _isOrdering = false;
+  List<Map<String, dynamic>> _reviews = [];
+  bool _isLoadingReviews = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProductReviews();
+  }
 
   @override
   void dispose() {
@@ -31,6 +40,94 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   MarketplaceProductModel get product => widget.product;
+
+  Future<void> _fetchProductReviews() async {
+    final data = await ApiService.get('/reviews/inventory/${product.stockId}/reviews');
+    if (mounted) {
+      setState(() {
+        _reviews = data != null ? List<Map<String, dynamic>>.from(data) : [];
+        _isLoadingReviews = false;
+      });
+    }
+  }
+
+  Widget _buildReviewsSection() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('Reviews', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+              const Spacer(),
+              Text(
+                product.ratingLabel,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_isLoadingReviews)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(color: AppColors.primaryTeal, strokeWidth: 2),
+            ))
+          else if (_reviews.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('No reviews yet for this product.', style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
+            )
+          else
+            ..._reviews.map(_buildReviewTile),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewTile(Map<String, dynamic> review) {
+    final rating = (review['rating'] as num?)?.toDouble() ?? 0;
+    final comment = review['comment'] as String? ?? '';
+    final reviewer = review['reviewerName'] as String? ?? 'Shop Owner';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ...List.generate(5, (i) {
+                if (i < rating.floor()) {
+                  return const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B));
+                }
+                return const Icon(Icons.star_outline_rounded, size: 14, color: Color(0xFFD1D5DB));
+              }),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  reviewer,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF374151)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(comment, style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
+          ],
+        ],
+      ),
+    );
+  }
 
   Future<void> _postCustomDemand() async {
     final quantityText = _quantityController.text.trim();
@@ -125,6 +222,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             _buildProductInfo(),
             _buildSupplierCard(),
             _buildDeliveryInfo(),
+            _buildReviewsSection(),
             const SizedBox(height: 100),
           ],
         ),

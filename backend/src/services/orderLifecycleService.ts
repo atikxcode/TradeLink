@@ -287,13 +287,22 @@ export async function confirmDeliveryWithOtp(
     );
 
     // Notify shop owner: delivery completed
+    // Look up inventory_id for the product so Flutter can attach the review to it
+    const invResult = await client.query(
+      `SELECT id FROM public.stockholder_inventory
+       WHERE stockholder_id = $1 AND LOWER(custom_product_name) = LOWER($2)
+       LIMIT 1`,
+      [order.supplier_id, order.product_name],
+    );
+    const inventoryId = invResult.rows.length > 0 ? invResult.rows[0].id : '';
+
     await client.query(
       `INSERT INTO notifications (user_id, title, subtitle, type)
        VALUES ($1, $2, $3, 'delivery_confirmed')`,
       [
         order.shop_owner_id,
         'Order Delivered!',
-        `Your order for ${order.product_name} is complete. Tap to leave an optional review.\n|||${orderId}|||${order.supplier_id}`,
+        `Your order for ${order.product_name} is complete. Tap to leave an optional review.\n|||${orderId}|||${order.supplier_id}|||${inventoryId}`,
       ],
     );
 

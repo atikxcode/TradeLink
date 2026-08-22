@@ -199,8 +199,8 @@ export async function searchSuppliers(
       si.quantity_available,
       si.unit,
       si.image_url,
-      COALESCE(u.rating, 5.0) AS rating,
-      COALESCE(u.review_count, 0) AS rating_count,
+      COALESCE(si.rating, 5.0) AS rating,
+      COALESCE(si.review_count, 0) AS rating_count,
       ${haversine} AS distance_km
     FROM public.stockholder_inventory si
     JOIN public.users u ON si.stockholder_id = u.id
@@ -299,8 +299,8 @@ export async function searchAllSuppliers(
       si.quantity_available,
       si.unit,
       si.image_url,
-      COALESCE(u.rating, 5.0) AS rating,
-      COALESCE(u.review_count, 0) AS rating_count,
+      COALESCE(si.rating, 5.0) AS rating,
+      COALESCE(si.review_count, 0) AS rating_count,
       ${haversine} AS distance_km
     FROM public.stockholder_inventory si
     JOIN public.users u ON si.stockholder_id = u.id
