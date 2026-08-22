@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { publishStock, listStockHandler } from '../controllers/stockController.js';
+import { publishStock, listStockHandler, updateStockHandler, deleteStockHandler } from '../controllers/stockController.js';
 import { getHomeStatsHandler } from '../controllers/homeStatsController.js';
 import {
   acceptDemandHandler,
@@ -16,9 +16,14 @@ import {
   getCheapestSuppliersHandler,
 } from '../controllers/masterProductController.js';
 import { listOrdersHandler } from '../controllers/orderController.js';
+import { getProfileHandler, updateProfileHandler } from '../controllers/profileController.js';
 import { requireSupplier } from '../middleware/auth.js';
 
 const router = Router();
+
+// ---- Profile ----
+router.get('/profile', getProfileHandler);
+router.patch('/profile', updateProfileHandler);
 
 // ---- Master Product Catalog ----
 router.get('/master-products', listMasterProductsHandler);
@@ -30,6 +35,8 @@ router.get('/inventory/cheapest', getCheapestSuppliersHandler);
 // ---- Supplier (Stockholder) endpoints ----
 router.post('/suppliers/stock', requireSupplier, publishStock);
 router.get('/suppliers/stock', requireSupplier, listStockHandler);
+router.patch('/suppliers/stock/:id', requireSupplier, updateStockHandler);
+router.delete('/suppliers/stock/:id', requireSupplier, deleteStockHandler);
 router.get('/suppliers/home-stats', requireSupplier, getHomeStatsHandler);
 
 // ---- Demand endpoints ----
