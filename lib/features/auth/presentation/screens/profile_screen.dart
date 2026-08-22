@@ -4,6 +4,7 @@ import '../../../../core/constants/app_categories.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import 'login_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -28,6 +29,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _address = '';
   String _createdAt = '';
   String _initials = 'U';
+  String _role = '';
+  String _currentLanguage = 'English';
+
+  final Map<String, Map<String, String>> _localizedStrings = {
+    'English': {
+      'Profile': 'Profile',
+      'Personal Details': 'Personal Details',
+      'Full Name': 'Full Name',
+      'Phone': 'Phone',
+      'Email': 'Email',
+      'Not set': 'Not set',
+      'Shop Details': 'Shop Details',
+      'Business Name': 'Business Name',
+      'Category': 'Category',
+      'Address': 'Address',
+      'Business Hours': 'Business Hours',
+      'Tax ID': 'Tax ID',
+      'Settings': 'Settings',
+      'Notifications': 'Notifications',
+      'Language': 'Language',
+      'Support': 'Support',
+      'Help Center': 'Help Center',
+      'Privacy Policy': 'Privacy Policy',
+      'Log out': 'Log out',
+      'Supplier / Wholesaler': 'Supplier / Wholesaler',
+      'Shop Owner': 'Shop Owner',
+      'Failed to load profile': 'Failed to load profile',
+    },
+    'Bangla': {
+      'Profile': 'প্রোফাইল',
+      'Personal Details': 'ব্যক্তিগত বিবরণ',
+      'Full Name': 'পুরো নাম',
+      'Phone': 'ফোন',
+      'Email': 'ইমেইল',
+      'Not set': 'সেট করা নেই',
+      'Shop Details': 'দোকানের বিবরণ',
+      'Business Name': 'ব্যবসার নাম',
+      'Category': 'বিভাগ',
+      'Address': 'ঠিকানা',
+      'Business Hours': 'ব্যবসার সময়',
+      'Tax ID': 'ট্যাক্স আইডি',
+      'Settings': 'সেটিংস',
+      'Notifications': 'নোটিফিকেশন',
+      'Language': 'ভাষা',
+      'Support': 'সাপোর্ট',
+      'Help Center': 'হেল্প সেন্টার',
+      'Privacy Policy': 'গোপনীয়তা নীতি',
+      'Log out': 'লগ আউট',
+      'Supplier / Wholesaler': 'সরবরাহকারী / পাইকারি বিক্রেতা',
+      'Shop Owner': 'দোকান মালিক',
+      'Failed to load profile': 'প্রোফাইল লোড করতে ব্যর্থ হয়েছে',
+    }
+  };
+
+  String _t(String key) {
+    return _localizedStrings[_currentLanguage]?[key] ?? key;
+  }
 
   final _nameController = TextEditingController();
   final _businessController = TextEditingController();
@@ -41,7 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _fetchProfile();
   }
 
   @override
@@ -120,6 +178,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _initials = _computeInitials(business.isNotEmpty ? business : name);
       _isLoading = false;
     });
+    
+    try {
+      if (_userData != null && _userData!['id'] != null) {
+        await SupabaseConfig.client
+            .from(SupabaseConfig.tableUsers)
+            .update({'preferred_language': newLang})
+            .eq('id', _userData!['id']);
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('preferred_language', newLang);
+    } catch (e) {
+      // Ignored for now
+    }
+  }
+
+  void _showLanguageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(_t('Language')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                title: const Text('English'),
+                value: 'English',
+                groupValue: _currentLanguage,
+                onChanged: (val) {
+                  if (val != null) {
+                    _updateLanguage(val);
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Close details screen to refresh UI
+                  }
+                },
+              ),
+              RadioListTile<String>(
+                title: const Text('বাংলা (Bangla)'),
+                value: 'Bangla',
+                groupValue: _currentLanguage,
+                onChanged: (val) {
+                  if (val != null) {
+                    _updateLanguage(val);
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   String _computeInitials(String displayName) {
@@ -239,9 +351,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               _businessName.isNotEmpty ? _businessName : (_fullName.isNotEmpty ? _fullName : 'User'),
               style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
               ),
             ),
           ),
@@ -266,6 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+            child: const Icon(Icons.edit_outlined, color: AppColors.primaryTeal, size: 20),
           ),
           if (_createdAt.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -500,21 +613,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class _ProfileTile extends StatelessWidget {
+class _ProfileListTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
 
-  const _ProfileTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _ProfileListTile({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Padding(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -522,6 +630,7 @@ class _ProfileTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 44,
@@ -544,16 +653,52 @@ class _ProfileTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF0F172A)),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionListTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final String? trailingText;
+
+  const _ActionListTile({required this.icon, required this.label, required this.onTap, this.trailingText});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xFF64748B), size: 22),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF0F172A)),
+              ),
+            ),
+            if (trailingText != null) ...[
+              Text(
+                trailingText!,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 8),
+            ],
+            const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1), size: 24),
+          ],
+        ),
       ),
     );
   }

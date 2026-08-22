@@ -21,16 +21,15 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   String _businessName = 'My Shop';
   String _initials = 'SO';
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUserProfile();
-  }
+
 
   Future<void> _loadUserProfile() async {
     final prefs = await SharedPreferences.getInstance();
-    final name = prefs.getString('user_business') ?? prefs.getString('user_name') ?? 'My Shop';
-    
+    final name =
+        prefs.getString('user_business') ??
+        prefs.getString('user_name') ??
+        'My Shop';
+
     // Generate initials
     final words = name.trim().split(RegExp(r'\s+'));
     String inits = '';
@@ -51,12 +50,27 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     }
   }
 
-  static const List<Widget> _tabs = [
-    ShopOwnerDashboard(),
-    StockScreen(showAddButton: true),
-    OrdersScreen(),
-    ProfileScreen(),
-  ];
+  late final List<Widget> _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+    _tabs = [
+      ShopOwnerDashboard(
+        onNavigateToPost: () => setState(() => _currentIndex = 2),
+      ),
+      const OrdersScreen(),
+      PostDemandScreen(
+        isTab: true,
+        onPostSuccess: () {
+          setState(() => _currentIndex = 0);
+          // Optional: refresh dashboard data if needed
+        },
+      ),
+      const ProfileScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -185,15 +199,17 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_outlined),
-            label: 'Stock',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.receipt_outlined),
             label: 'Orders',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle_outline),
+            activeIcon: Icon(Icons.add_circle),
+            label: 'Post',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
@@ -203,7 +219,9 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
 }
 
 class ShopOwnerDashboard extends StatefulWidget {
-  const ShopOwnerDashboard({super.key});
+  final VoidCallback onNavigateToPost;
+
+  const ShopOwnerDashboard({super.key, required this.onNavigateToPost});
 
   @override
   State<ShopOwnerDashboard> createState() => _ShopOwnerDashboardState();
@@ -211,9 +229,9 @@ class ShopOwnerDashboard extends StatefulWidget {
 
 class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
   bool _isLoading = true;
-  int _demandsCount = 0;
-  int _ordersCount = 0;
-  int _stocksCount = 0;
+  int _openDemandsCount = 0;
+  int _outForDeliveryCount = 0;
+  int _completedCount = 0;
   List<Map<String, dynamic>> _postedDemands = [];
 
   @override
@@ -245,39 +263,26 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
 
       final demands = await demandQuery;
 
-      // 2. Fetch pending orders count
-      int ordersCount = 0;
-      try {
-        var orderQuery = SupabaseConfig.client
-            .from(SupabaseConfig.tableOrders)
-            .select('id')
-            .eq('status', 'pending');
-        if (userId != null && userId.isNotEmpty) {
-          orderQuery = orderQuery.eq('shop_owner_id', userId);
-        }
-        final orders = await orderQuery;
-        ordersCount = (orders as List).length;
-      } catch (_) {}
+      int openDemands = 0;
+      int outForDelivery = 0;
+      int completed = 0;
 
-      // 3. Fetch stocks count
-      int stocksCount = 0;
-      try {
-        var stockQuery = SupabaseConfig.client
-            .from(SupabaseConfig.tableStocks)
-            .select('id');
-        if (userId != null && userId.isNotEmpty) {
-          stockQuery = stockQuery.eq('user_id', userId);
-        }
-        final stocks = await stockQuery;
-        stocksCount = (stocks as List).length;
-      } catch (_) {}
+      for (var d in demands as List) {
+        final status = d['status']?.toString().toLowerCase();
+        if (status == 'pending')
+          openDemands++;
+        else if (status == 'accepted')
+          outForDelivery++;
+        else if (status == 'delivered')
+          completed++;
+      }
 
       if (mounted) {
         setState(() {
           _postedDemands = List<Map<String, dynamic>>.from(demands);
-          _demandsCount = _postedDemands.length;
-          _ordersCount = ordersCount;
-          _stocksCount = stocksCount;
+          _openDemandsCount = openDemands;
+          _outForDeliveryCount = outForDelivery;
+          _completedCount = completed;
           _isLoading = false;
         });
       }
@@ -302,24 +307,13 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
             height: 48,
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PostDemandScreen(),
-                  ),
-                );
-                if (result == true || mounted) {
-                  _fetchDashboardData();
-                }
+              onPressed: () {
+                widget.onNavigateToPost();
               },
               icon: const Icon(Icons.add_rounded, size: 20),
               label: const Text(
                 'Post new demand',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryTeal,
@@ -347,10 +341,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               icon: const Icon(Icons.auto_awesome_rounded, size: 20),
               label: const Text(
                 'Ask TradeLink Assistant',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryTeal,
@@ -364,11 +355,14 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
           const SizedBox(height: 24),
           Row(
             children: [
-              _StatCard(number: '$_demandsCount', label: 'My demands'),
+              _StatCard(number: '$_openDemandsCount', label: 'Open\ndemands'),
               const SizedBox(width: 12),
-              _StatCard(number: '$_ordersCount', label: 'Pending orders'),
+              _StatCard(
+                number: '$_outForDeliveryCount',
+                label: 'Out for\ndelivery',
+              ),
               const SizedBox(width: 12),
-              _StatCard(number: '$_stocksCount', label: 'Stock items'),
+              _StatCard(number: '$_completedCount', label: 'Completed\n'),
             ],
           ),
           const SizedBox(height: 24),
@@ -428,10 +422,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                   const Text(
                     'Tap "Post new demand" above to broadcast what you need to nearby suppliers.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF64748B),
-                    ),
+                    style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                   ),
                 ],
               ),
@@ -441,7 +432,8 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               final productName = demand['product_name'] ?? 'Product';
               final quantity = demand['quantity']?.toString() ?? '1';
               final unit = demand['unit'] ?? 'kg';
-              final status = demand['status']?.toString().toUpperCase() ?? 'PENDING';
+              final status =
+                  demand['status']?.toString().toUpperCase() ?? 'PENDING';
               final createdAt = demand['created_at']?.toString() ?? '';
 
               Color statusColor = AppColors.pending;
@@ -451,7 +443,8 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
 
               return _DemandStatusCard(
                 title: '$productName, $quantity $unit',
-                subtitle: 'Status: $status ${createdAt.length >= 10 ? "· ${createdAt.substring(0, 10)}" : ""}',
+                subtitle:
+                    'Status: $status ${createdAt.length >= 10 ? "· ${createdAt.substring(0, 10)}" : ""}',
                 status: status,
                 statusColor: statusColor,
               );
@@ -493,10 +486,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF6B7280),
-              ),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
             ),
           ],
         ),
@@ -546,7 +536,10 @@ class _DemandStatusCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
@@ -565,10 +558,7 @@ class _DemandStatusCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             subtitle,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
           ),
         ],
       ),

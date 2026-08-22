@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/services/api_service.dart';
+import '../../../../core/config/supabase_config.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -20,14 +21,35 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _fetchOrders() async {
-    final data = await ApiService.get('/orders');
-    if (data != null && mounted) {
-      setState(() {
-        _orders = (data as List).map((e) => Map<String, dynamic>.from(e)).toList();
-        _isLoading = false;
-      });
-    } else if (mounted) {
-      setState(() => _isLoading = false);
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      
+      if (userId == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final response = await SupabaseConfig.client
+          .from(SupabaseConfig.tableOrders)
+          .select()
+          .or('shop_owner_id.eq.$userId,supplier_id.eq.$userId')
+          .order('created_at', ascending: false);
+          
+      if (mounted) {
+        setState(() {
+          _orders = List<Map<String, dynamic>>.from(response);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to fetch orders: $e'), backgroundColor: AppColors.cancelled),
+        );
+      }
     }
   }
 
@@ -68,9 +90,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     )
                   else
                     ..._orders.map((order) => _OrderItem(
-                          product: order['productName'] ?? 'Unknown',
+                          product: order['product_name'] ?? 'Unknown',
                           quantity: '${order['quantity'] ?? 0} ${order['unit'] ?? ''}',
-                          totalAmount: order['totalAmount'] ?? 0,
+                          totalAmount: order['total_amount'] ?? 0,
                           status: order['status'] ?? 'pending',
                         )),
                 ],
@@ -169,7 +191,9 @@ class _OrderItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Total: ৳${totalAmount.toStringAsFixed(2)}',
+            totalAmount is num
+                ? 'Total: ৳${(totalAmount as num).toStringAsFixed(2)}'
+                : 'Total: ৳$totalAmount',
             style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
