@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/services/api_service.dart';
 import 'models/supplier_result.dart';
 import 'services/assistant_service.dart';
 import 'supplier_comparison_screen.dart';
@@ -28,6 +29,14 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
+
+  // ── Active search context ────────────────────────────────────────
+  // Quick-action chips mutate this context instead of being sent to the
+  // backend as new (garbage) product queries.
+  List<SupplierResult> _activeSuppliers = [];
+  String? _activeQuery;
+  bool _sortedByDistance = false;
+  double? _appliedMinRating;
 
   final List<AssistantMessage> _messages = [
     AssistantMessage(
@@ -61,9 +70,138 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
     setState(() {
       _isTyping = false;
       _messages.add(reply);
+      // A fresh typed query replaces the active search context.
+      if (reply.suppliers != null && reply.suppliers!.isNotEmpty) {
+        _activeSuppliers = List<SupplierResult>.from(reply.suppliers!);
+        _activeQuery = text;
+        _sortedByDistance = false;
+        _appliedMinRating = null;
+      }
     });
     _scrollToBottom();
   }
+
+  /// 'Sort by distance instead' chip — re-sorts the ACTIVE result set
+  /// by distance_km ASC without touching the original product query.
+  void _applyDistanceSort() {
+    if (_activeSuppliers.isEmpty) return;
+    final sorted = List<SupplierResult>.from(_activeSuppliers)
+      ..sort((a, b) {
+        final da = a.distanceKm ?? double.infinity;
+        final db = b.distanceKm ?? double.infinity;
+        return da.compareTo(db);
+      });
+    setState(() {
+      _sortedByDistance = true;
+      _activeSuppliers = sorted;
+      _messages.add(AssistantMessage(
+        text: 'Sorted ${_resultLabel()} by nearest first. Still showing '
+            'results for "$_queryLabel".',
+        isUser: false,
+        suppliers: sorted,
+      ));
+    });
+    _scrollToBottom();
+  }
+
+  /// 'Only show 4.5★ & up' chip — filters the ACTIVE result set by
+  /// rating >= 4.5 while keeping the original product query active.
+  void _applyRatingFilter() {
+    if (_activeSuppliers.isEmpty) return;
+    final total = _activeSuppliers.length;
+    final filtered =
+        _activeSuppliers.where((s) => s.rating >= 4.5).toList();
+    setState(() {
+      _appliedMinRating = 4.5;
+      if (filtered.isNotEmpty) {
+        _activeSuppliers = filtered;
+      }
+      _messages.add(AssistantMessage(
+        text: filtered.isEmpty
+            ? 'No "${_queryLabel}" results are rated 4.5★ or higher yet. '
+                'Showing all results instead.'
+            : 'Showing ${filtered.length} of $total '
+                '"${_queryLabel}" results rated 4.5★ & up.',
+        isUser: false,
+        suppliers: filtered.isEmpty ? _activeSuppliers : filtered,
+      ));
+    });
+    _scrollToBottom();
+  }
+
+  String get _queryLabel => _activeQuery ?? 'your product';
+
+  /// Sends each supplier-group of matched items as targeted open demands.
+  /// Suppliers Accept/Decline from their Nearby Demands feed; accepting
+  /// creates the real order for both parties.
+  Future<void> _confirmMultiOrder(List<PendingOrderItem> items) async {
+    // Group matched items per target supplier
+    final groups = <String, List<Map<String, dynamic>>>{};
+    final unmatched = <String>[];
+
+    for (final item in items) {
+      if (item.match == null) {
+        unmatched.add(item.name);
+        continue;
+      }
+      groups
+          .putIfAbsent(item.match!.stockholderId, () => [])
+          .add({
+            'name': item.match!.productName,
+            'quantity': item.quantity,
+          });
+    }
+
+    if (groups.isEmpty && unmatched.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('None of those items are available to order.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    var sentTo = 0;
+    final failedSuppliers = <String>[];
+
+    for (final entry in groups.entries) {
+      try {
+        final result = await ApiService.post('/assistant/order', body: {
+          'stockholderId': entry.key,
+          'items': entry.value,
+        });
+        if (result != null) {
+          sentTo++;
+        } else {
+          failedSuppliers.add(entry.value.first['name']?.toString() ?? 'supplier');
+        }
+      } catch (_) {
+        failedSuppliers.add(entry.value.first['name']?.toString() ?? 'supplier');
+      }
+    }
+
+    if (!mounted) return;
+    final parts = <String>[
+      if (sentTo > 0)
+        'Request${sentTo == 1 ? '' : 's'} sent — waiting for supplier confirmation',
+      if (failedSuppliers.isNotEmpty)
+        'Failed: ${failedSuppliers.join(', ')}',
+      if (unmatched.isNotEmpty) 'Skipped: ${unmatched.join(', ')}',
+    ];
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(parts.join(' • ')),
+        backgroundColor:
+            failedSuppliers.isEmpty ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _resultLabel() =>
+      '${_activeSuppliers.length} result${_activeSuppliers.length == 1 ? '' : 's'}';
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -128,13 +266,19 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
       if (msg.isUser) {
         return _UserBubble(text: msg.text);
       }
+      if (msg.pendingItems != null) {
+        return _MultiItemConfirmationCard(
+          items: msg.pendingItems!,
+          onConfirm: () => _confirmMultiOrder(msg.pendingItems!),
+        );
+      }
       if (msg.suppliers != null) {
         return _AssistantReply(
           text: msg.text,
           suppliers: msg.suppliers!,
           onSeeAll: () => _openSupplierComparison(msg.suppliers!.first, msg.suppliers!),
-          onSortByDistance: () => _sendMessage('sort by distance instead'),
-          onRatingFilter: () => _sendMessage('only show 4.5★ and up'),
+          onSortByDistance: _applyDistanceSort,
+          onRatingFilter: _applyRatingFilter,
           onOrderNow: _handleOrderNow,
         );
       }
@@ -624,20 +768,26 @@ class _ProductCard extends StatelessWidget {
             ),
           if (supplier.imageUrl != null && supplier.imageUrl!.isNotEmpty)
             const SizedBox(height: 6),
-          Text(
-            supplier.storeName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF0F172A),
-              fontFamily: 'Sora',
+          // Product title — falls back to supplier name when missing
+          SizedBox(
+            height: 20,
+            width: double.infinity,
+            child: Text(
+              (supplier.productName.isNotEmpty ? supplier.productName : supplier.storeName),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+                fontFamily: 'Sora',
+              ),
             ),
           ),
           const SizedBox(height: 2),
+          // Supplier name + distance line
           Text(
-            '${supplier.location} · ${supplier.distance}',
+            '${supplier.storeName} · ${supplier.distance}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1216,6 +1366,134 @@ class _PulsingDotState extends State<_PulsingDot>
           color: Color(0xFF94A3B8),
           shape: BoxShape.circle,
         ),
+      ),
+    );
+  }
+}
+// ==================== Multi-Item Order Confirmation ====================
+
+class _MultiItemConfirmationCard extends StatelessWidget {
+  final List<PendingOrderItem> items;
+  final VoidCallback onConfirm;
+
+  const _MultiItemConfirmationCard({
+    required this.items,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final matchable = items.where((i) => i.match != null).toList();
+    final total = items.fold<double>(
+      0,
+      (sum, i) => sum + (i.subtotal ?? 0),
+    );
+    final hasMatch = matchable.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _AssistantAvatar(),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...items.map(_buildItemRow),
+                  if (hasMatch) ...[
+                    const Divider(height: 20, color: Color(0xFFE2E8F0)),
+                    Row(
+                      children: [
+                        const Text('Estimated total',
+                            style: TextStyle(
+                                fontSize: 13, color: Color(0xFF64748B))),
+                        const Spacer(),
+                        Text('৳${total.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F766E))),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: onConfirm,
+                        icon: const Icon(Icons.check_circle_outline,
+                            size: 18),
+                        label: const Text('Confirm Order'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F4C3A),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemRow(PendingOrderItem item) {
+    final match = item.match;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${item.quantity} ${match?.unit ?? ''} ${item.name}',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A)),
+                ),
+                if (match != null)
+                  Text(
+                    '${match.storeName} • ৳${match.price.toStringAsFixed(2)}/${match.unit} • ${match.distance}',
+                    style: const TextStyle(
+                        fontSize: 11.5, color: Color(0xFF64748B)),
+                  )
+                else
+                  const Text(
+                    'Not available nearby — will be skipped',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFFEF4444)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            match != null ? '৳${item.subtotal!.toStringAsFixed(2)}' : '—',
+            style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1E293B)),
+          ),
+        ],
       ),
     );
   }

@@ -40,6 +40,7 @@ export interface MarketplaceProduct {
   warehouseAddress: string | null;
   supplierLat: number | null;
   supplierLng: number | null;
+  supplierPhone?: string | null;
   productName: string;
   category: string;
   pricePerUnit: number;
@@ -75,6 +76,7 @@ export interface NearbyDemand {
   deliveryAddress?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  distanceKm?: number | null;
   shopOwnerName?: string;
   shopOwnerPhone?: string;
   status: DemandStatus;

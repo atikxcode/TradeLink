@@ -41,6 +41,141 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   MarketplaceProductModel get product => widget.product;
 
+  /// Confirmation gate: shows an order breakdown and only calls the API
+  /// after the user explicitly taps "Confirm Order".
+  Future<void> _showOrderConfirmationModal() async {
+    final quantityText = _quantityController.text.trim();
+    final quantity = double.tryParse(quantityText);
+    if (quantity == null || quantity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please enter a valid quantity'),
+            backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final deliveryAddress =
+        prefs.getString('user_address') ?? 'Selected shop location';
+    if (!mounted) return;
+
+    final unitPrice = product.pricePerUnit;
+    final totalPrice = unitPrice * quantity;
+    final unit = product.unit;
+    final sellerName = product.supplierName;
+    final sellerPhone =
+        (product.supplierPhone?.isNotEmpty ?? false) ? product.supplierPhone! : 'N/A';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Confirm Order Details',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A)),
+              ),
+              const Divider(height: 24),
+              _buildModalRow('Product Name', product.productName),
+              _buildModalRow(
+                  'Unit Price', '৳${unitPrice.toStringAsFixed(2)} / $unit'),
+              _buildModalRow('Quantity', '$quantity $unit'),
+              _buildModalRow('Total Price', '৳${totalPrice.toStringAsFixed(2)}',
+                  isBold: true, color: const Color(0xFF0F766E)),
+              const SizedBox(height: 8),
+              _buildModalRow('Seller Name', sellerName),
+              _buildModalRow('Phone Number', sellerPhone),
+              _buildModalRow('Delivery Location', deliveryAddress),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(modalContext),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(modalContext);
+                        _postCustomDemand(); // API call after explicit confirmation
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: const Color(0xFF0F4C3A),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Confirm Order',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildModalRow(String label, String value,
+      {bool isBold = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 14)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                color: color ?? const Color(0xFF1E293B),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _fetchProductReviews() async {
     final data = await ApiService.get('/reviews/inventory/${product.stockId}/reviews');
     if (mounted) {
@@ -473,7 +608,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               child: SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: (_isOrdering || !product.inStock) ? null : _postCustomDemand,
+                  onPressed:
+                      (_isOrdering || !product.inStock) ? null : _showOrderConfirmationModal,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryTeal,
                     foregroundColor: Colors.white,
