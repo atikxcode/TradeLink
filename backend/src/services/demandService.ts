@@ -113,7 +113,8 @@ export async function acceptDemand(
 
     const demandRow = demand.rows[0];
     if (!demandRow) throw httpError('Demand not found', 404);
-    if (demandRow.status !== 'pending') {
+    // 'open' is the canonical open status; 'pending' kept for legacy rows
+    if (demandRow.status !== 'open' && demandRow.status !== 'pending') {
       throw httpError(`Demand already ${demandRow.status}`, 409);
     }
 
@@ -190,7 +191,7 @@ export async function declineDemand(
 
   const row = demand.rows[0];
   if (!row) throw httpError('Demand not found', 404);
-  if (row.status !== 'pending') {
+  if (row.status !== 'open' && row.status !== 'pending') {
     throw httpError(`Demand already ${row.status}`, 409);
   }
 

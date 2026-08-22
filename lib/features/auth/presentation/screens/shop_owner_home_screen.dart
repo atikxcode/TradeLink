@@ -312,12 +312,24 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
 
       for (var d in demands as List) {
         final status = d['status']?.toString().toLowerCase();
-        if (status == 'pending')
+        if (status == 'pending' || status == 'open')
           openDemands++;
         else if (status == 'accepted')
           outForDelivery++;
-        else if (status == 'delivered')
-          completed++;
+      }
+
+      // Completed deliveries live on ORDERS, not demands.
+      // Demands never reach a 'delivered' status, so count them here.
+      try {
+        final ordersData = await ApiService.get('/orders/shop-owner');
+        if (ordersData != null) {
+          final orders = List<Map<String, dynamic>>.from(ordersData);
+          completed = orders
+              .where((o) =>
+                  o['status']?.toString().toLowerCase() == 'delivered')
+              .length;
+        }
+      } catch (_) {// Orders fetch failed — keep completed at 0
       }
 
       if (mounted) {

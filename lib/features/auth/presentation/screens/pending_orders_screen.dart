@@ -6,22 +6,38 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
 
 class PendingOrdersScreen extends StatefulWidget {
-  const PendingOrdersScreen({super.key});
+  final bool embedded;
+  const PendingOrdersScreen({super.key, this.embedded = false});
 
   @override
   State<PendingOrdersScreen> createState() => _PendingOrdersScreenState();
 }
 
-class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
+class _PendingOrdersScreenState extends State<PendingOrdersScreen>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _orders = [];
   bool _isActionInProgress = false;
 
+  bool _isLoadingCompleted = true;
+  String? _errorCompleted;
+  List<Map<String, dynamic>> _completedOrders = [];
+
+  late final TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _fetchPendingOrders();
+    _fetchCompletedOrders();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchPendingOrders() async {
@@ -36,6 +52,22 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
       setState(() {
         _error = 'Failed to load orders. Pull to refresh.';
         _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchCompletedOrders() async {
+    if (mounted) setState(() { _isLoadingCompleted = true; _errorCompleted = null; });
+    final data = await ApiService.get('/orders/completed');
+    if (data != null && mounted) {
+      setState(() {
+        _completedOrders = List<Map<String, dynamic>>.from(data);
+        _isLoadingCompleted = false;
+      });
+    } else if (mounted) {
+      setState(() {
+        _errorCompleted = 'Failed to load completed orders. Pull to refresh.';
+        _isLoadingCompleted = false;
       });
     }
   }
@@ -157,6 +189,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
         ),
       );
       _fetchPendingOrders();
+      if (!isError) _fetchCompletedOrders();
     }
   }
 
@@ -215,36 +248,42 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(60),
-        child: Container(
-          height: 60,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Colors.white,
+          scrolledUnderElevation: 0,
+          elevation: 0,
+          shape: const Border(
+            bottom: BorderSide(color: Color(0xFFE2E8F0)),
           ),
-          child: Row(
+          titleSpacing: 0,
+          title: Row(
             children: [
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 16,
-                    color: Color(0xFF64748B),
+              if (!widget.embedded) ...[
+                const SizedBox(width: 16),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
+              ] else
+                const SizedBox(width: 20),
               const Text(
                 'Orders',
                 style: TextStyle(
@@ -255,98 +294,216 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen> {
               ),
             ],
           ),
+          bottom: TabBar(
+            controller: _tabController,
+            labelColor: const Color(0xFF0F5C4F),
+            unselectedLabelColor: const Color(0xFF64748B),
+            indicatorColor: const Color(0xFF0F5C4F),
+            indicatorSize: TabBarIndicatorSize.tab,
+            labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            dividerColor: Colors.transparent,
+            tabs: const [
+              Tab(text: 'Active'),
+              Tab(text: 'Completed'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildActiveTab(),
+            _buildCompletedTab(),
+          ],
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)))
-          : _error != null
-              ? ListView(
-                  children: [
-                    const SizedBox(height: 80),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 32),
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF2F2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFFECACA)),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.error_outline, size: 32, color: Color(0xFFEF4444)),
-                          const SizedBox(height: 12),
-                          Text(
-                            _error!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+    );
+  }
+
+  Widget _buildActiveTab() {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)))
+        : _error != null
+            ? ListView(
+                children: [
+                  const SizedBox(height: 80),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 32),
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.error_outline, size: 32, color: Color(0xFFEF4444)),
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchPendingOrders,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F5C4F),
+                            foregroundColor: Colors.white,
                           ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _fetchPendingOrders,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F5C4F),
-                              foregroundColor: Colors.white,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : RefreshIndicator(
+                onRefresh: _fetchPendingOrders,
+                color: const Color(0xFF0F5C4F),
+                child: _orders.isEmpty
+                    ? ListView(
+                        children: [
+                          const SizedBox(height: 80),
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 32),
+                            padding: const EdgeInsets.all(32),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF9FAFB),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
                             ),
-                            child: const Text('Retry'),
+                            child: const Center(
+                              child: Text(
+                                'No active orders',
+                                style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                              ),
+                            ),
                           ),
                         ],
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        itemCount: _orders.length,
+                        itemBuilder: (context, index) {
+                          final order = _orders[index];
+                          final qty = order['quantity'];
+                          final displayQty = qty is num ? qty.toInt().toString() : qty?.toString() ?? '0';
+                          return _SupplierOrderCard(
+                            orderId: order['orderId'] ?? '',
+                            productName: order['productName'] ?? 'Unknown',
+                            quantity: displayQty,
+                            unit: order['unit'] ?? '',
+                            totalAmount: order['totalAmount'] ?? 0,
+                            orderStatus: order['orderStatus'] ?? 'pending',
+                            orderTime: order['orderTime'] ?? '',
+                            shopOwnerName: order['shopOwnerName'] ?? 'Shop Owner',
+                            shopOwnerPhone: order['shopOwnerPhone'] ?? '',
+                            deliveryLocation: order['deliveryLocation'],
+                            deliveryOtp: order['deliveryOtp'],
+                            isActionInProgress: _isActionInProgress,
+                            onAccept: () => _acceptOrder(order['orderId']),
+                            onDecline: () => _declineOrder(order['orderId']),
+                            onOutForDelivery: () => _markOutOfDelivery(order['orderId']),
+                            onVerifyDelivery: () => _verifyDelivery(order['orderId']),
+                          );
+                        },
                       ),
-                    ),
-                  ],
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchPendingOrders,
-                  color: const Color(0xFF0F5C4F),
-                  child: _orders.isEmpty
-                      ? ListView(
-                          children: [
-                            const SizedBox(height: 80),
-                            Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 32),
-                              padding: const EdgeInsets.all(32),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF9FAFB),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFE5E7EB)),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'No orders yet',
-                                  style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          itemCount: _orders.length,
-                          itemBuilder: (context, index) {
-                            final order = _orders[index];
-                            final qty = order['quantity'];
-                            final displayQty = qty is num ? qty.toInt().toString() : qty?.toString() ?? '0';
-                            return _SupplierOrderCard(
-                              orderId: order['orderId'] ?? '',
-                              productName: order['productName'] ?? 'Unknown',
-                              quantity: displayQty,
-                              unit: order['unit'] ?? '',
-                              totalAmount: order['totalAmount'] ?? 0,
-                              orderStatus: order['orderStatus'] ?? 'pending',
-                              orderTime: order['orderTime'] ?? '',
-                              shopOwnerName: order['shopOwnerName'] ?? 'Shop Owner',
-                              shopOwnerPhone: order['shopOwnerPhone'] ?? '',
-                              deliveryLocation: order['deliveryLocation'],
-                              deliveryOtp: order['deliveryOtp'],
-                              isActionInProgress: _isActionInProgress,
-                              onAccept: () => _acceptOrder(order['orderId']),
-                              onDecline: () => _declineOrder(order['orderId']),
-                              onOutForDelivery: () => _markOutOfDelivery(order['orderId']),
-                              onVerifyDelivery: () => _verifyDelivery(order['orderId']),
-                            );
-                          },
-                        ),
+              );
+  }
+
+  Widget _buildCompletedTab() {
+    Widget body;
+    if (_isLoadingCompleted) {
+      body = const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)));
+    } else if (_errorCompleted != null) {
+      body = ListView(
+        children: [
+          const SizedBox(height: 80),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFECACA)),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.error_outline, size: 32, color: Color(0xFFEF4444)),
+                const SizedBox(height: 12),
+                Text(
+                  _errorCompleted!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
                 ),
-    );
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _fetchCompletedOrders,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F5C4F),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else if (_completedOrders.isEmpty) {
+      body = ListView(
+        children: [
+          const SizedBox(height: 80),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.check_circle_outline, size: 32, color: Color(0xFF10B981)),
+                SizedBox(height: 12),
+                Text(
+                  'No completed orders yet',
+                  style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      body = RefreshIndicator(
+        onRefresh: _fetchCompletedOrders,
+        color: const Color(0xFF0F5C4F),
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          itemCount: _completedOrders.length,
+          separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          itemBuilder: (context, index) {
+            final order = _completedOrders[index];
+            final qty = order['quantity'];
+            final displayQty = qty is num ? qty.toInt().toString() : qty?.toString() ?? '0';
+            return _CompletedOrderCard(
+              productName: order['productName'] ?? 'Unknown',
+              quantity: displayQty,
+              unit: order['unit'] ?? '',
+              totalAmount: order['totalAmount'] ?? 0,
+              deliveredAt: order['deliveredAt'] ?? '',
+              shopOwnerName: order['shopOwnerName'] ?? 'Shop Owner',
+              shopOwnerPhone: order['shopOwnerPhone'] ?? '',
+              givenRating: order['givenRating'],
+              givenComment: order['givenComment'],
+            );
+          },
+        ),
+      );
+    }
+    return body;
   }
 }
 
@@ -491,14 +648,6 @@ class _SupplierOrderCard extends StatelessWidget {
               const _Divider(),
               _InfoRow(label: 'Delivery', value: deliveryLocation!),
             ],
-            if (deliveryOtp != null && deliveryOtp!.isNotEmpty) ...[
-              const _Divider(),
-              _InfoRow(
-                label: 'Delivery OTP',
-                value: deliveryOtp!,
-                valueColor: const Color(0xFF0F5C4F),
-              ),
-            ],
             const _Divider(),
             _InfoRow(
               label: 'Ordered',
@@ -635,5 +784,180 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Divider(height: 1, color: Color(0xFFE2E8F0));
+  }
+}
+
+// ==================== Completed Order Card ====================
+
+class _CompletedOrderCard extends StatelessWidget {
+  final String productName;
+  final String quantity;
+  final String unit;
+  final num totalAmount;
+  final String deliveredAt;
+  final String shopOwnerName;
+  final String shopOwnerPhone;
+  final dynamic givenRating;
+  final String? givenComment;
+
+  const _CompletedOrderCard({
+    required this.productName,
+    required this.quantity,
+    required this.unit,
+    required this.totalAmount,
+    required this.deliveredAt,
+    required this.shopOwnerName,
+    required this.shopOwnerPhone,
+    this.givenRating,
+    this.givenComment,
+  });
+
+  String get _deliveredLabel {
+    try {
+      final dt = DateTime.parse(deliveredAt);
+      final local = dt.toLocal();
+      return '${local.day}/${local.month}/${local.year}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  int get _rating {
+    if (givenRating is num) return givenRating.toInt();
+    return int.tryParse(givenRating?.toString() ?? '') ?? 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  productName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'Delivered',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF059669),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                '$quantity $unit',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.verified_outlined, size: 14, color: Color(0xFF10B981)),
+              const SizedBox(width: 3),
+              Text(
+                _deliveredLabel,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+          const Divider(height: 16, color: Color(0xFFE2E8F0)),
+          Row(
+            children: [
+              const Icon(Icons.storefront_outlined, size: 15, color: Color(0xFF64748B)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  shopOwnerName,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF374151), fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                '৳${_fmtAmount(totalAmount)}',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF0F5C4F),
+                ),
+              ),
+            ],
+          ),
+          if (_rating > 0 || (givenComment ?? '').isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      ...List.generate(5, (i) {
+                        return Icon(
+                          i < _rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                          size: 15,
+                          color: i < _rating ? const Color(0xFFF59E0B) : const Color(0xFFD1D5DB),
+                        );
+                      }),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Customer review',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+                      ),
+                    ],
+                  ),
+                  if ((givenComment ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      givenComment!,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF374151)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+            const Text(
+              'No review left yet',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Color(0xFF9CA3AF)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _fmtAmount(num amount) {
+    final d = amount.toDouble();
+    return d == d.roundToDouble() ? d.toInt().toString() : d.toStringAsFixed(2);
   }
 }

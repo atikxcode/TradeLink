@@ -82,3 +82,75 @@ export async function getPendingOrders(
 
   return rows.map(mapPendingOrderRow);
 }
+
+export interface CompletedOrderRow {
+  order_id: string;
+  product_name: string;
+  quantity: number;
+  unit: string;
+  total_amount: number;
+  delivered_at: Date;
+  shop_owner_name: string;
+  shop_owner_phone: string;
+  given_rating: number | null;
+  given_comment: string | null;
+}
+
+export interface CompletedOrderDto {
+  orderId: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  totalAmount: number;
+  deliveredAt: string;
+  shopOwnerName: string;
+  shopOwnerPhone: string;
+  givenRating: number | null;
+  givenComment: string | null;
+}
+
+function mapCompletedOrderRow(row: CompletedOrderRow): CompletedOrderDto {
+  return {
+    orderId: row.order_id,
+    productName: row.product_name,
+    quantity: Number(row.quantity),
+    unit: row.unit,
+    totalAmount: Number(row.total_amount),
+    deliveredAt: row.delivered_at?.toISOString?.() ?? String(row.delivered_at),
+    shopOwnerName: row.shop_owner_name,
+    shopOwnerPhone: row.shop_owner_phone,
+    givenRating: row.given_rating != null ? Number(row.given_rating) : null,
+    givenComment: row.given_comment ?? null,
+  };
+}
+
+/**
+ * Fetch all finalized (delivered) orders for the logged-in supplier,
+ * including any rating/review left by the shop owner.
+ */
+export async function getCompletedOrders(
+  stockholderId: string,
+): Promise<CompletedOrderDto[]> {
+  const { rows } = await db.query<CompletedOrderRow>(
+    `SELECT
+       o.id                             AS order_id,
+       o.product_name,
+       o.quantity,
+       o.unit,
+       o.total_amount,
+       COALESCE(o.updated_at, o.created_at) AS delivered_at,
+       COALESCE(u.full_name, 'Unknown') AS shop_owner_name,
+       COALESCE(u.phone_number, '')     AS shop_owner_phone,
+       r.rating                         AS given_rating,
+       r.review                         AS given_comment
+     FROM public.orders o
+     JOIN public.users u ON o.shop_owner_id = u.id
+     LEFT JOIN public.ratings r ON r.order_id = o.id
+     WHERE o.supplier_id = $1
+       AND o.status = 'delivered'
+     ORDER BY COALESCE(o.updated_at, o.created_at) DESC`,
+    [stockholderId],
+  );
+
+  return rows.map(mapCompletedOrderRow);
+}

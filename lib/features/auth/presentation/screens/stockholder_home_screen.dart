@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
 import 'incoming_order_screen.dart';
 import 'notifications_screen.dart';
 import 'stock_screen.dart';
-import 'orders_screen.dart';
 import 'profile_screen.dart';
 import 'pending_orders_screen.dart';
 
@@ -40,7 +43,7 @@ class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
                   children: const [
                     _StockholderDashboard(),
                     StockScreen(),
-                    OrdersScreen(),
+                    PendingOrdersScreen(embedded: true),
                     ProfileScreen(),
                   ],
                 ),
@@ -262,7 +265,7 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
       if (mounted) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const OrdersScreen()),
+          MaterialPageRoute(builder: (context) => const PendingOrdersScreen()),
         );
       }
     } else if (mounted) {
@@ -345,16 +348,25 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
             )
           else
             ..._demands.map((demand) => DemandCard(
-                  title: demand['product_name'] ?? 'Unknown',
-                  distance: demand['category'] ?? '',
-                  subtitle: 'Qty: ${demand['quantity'] ?? 0} ${demand['unit'] ?? ''}',
+                  demandId: demand['id'] ?? '',
+                  productName: demand['productName'] ?? demand['product_name'] ?? 'Unknown',
+                  category: demand['category'] ?? '',
+                  quantity: demand['quantity'] ?? 0,
+                  unit: demand['unit'] ?? '',
+                  targetPrice: demand['targetPrice'],
+                  deliveryAddress: demand['deliveryAddress'],
+                  latitude: demand['latitude'],
+                  longitude: demand['longitude'],
+                  shopOwnerName: demand['shopOwnerName'] ?? 'Shop Owner',
+                  shopOwnerPhone: demand['shopOwnerPhone'] ?? '',
+                  notes: demand['notes'] ?? '',
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => IncomingOrderScreen(
                           demandId: demand['id'] ?? '',
-                          productName: demand['product_name'] ?? '',
+                          productName: demand['productName'] ?? demand['product_name'] ?? '',
                           quantity: (demand['quantity'] ?? 0).toString(),
                           unit: demand['unit'] ?? '',
                           category: demand['category'] ?? '',
@@ -365,11 +377,11 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
                   },
                   onAccept: () => _acceptDemand(
                     demand['id'] ?? '',
-                    demand['product_name'] ?? '',
+                    demand['productName'] ?? demand['product_name'] ?? '',
                   ),
                   onDecline: () => _declineDemand(
                     demand['id'] ?? '',
-                    demand['product_name'] ?? '',
+                    demand['productName'] ?? demand['product_name'] ?? '',
                   ),
                 )),
           const SizedBox(height: 16),
@@ -445,23 +457,124 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
   }
 }
 
-class DemandCard extends StatelessWidget {
-  final String title;
-  final String distance;
-  final String subtitle;
+class DemandCard extends StatefulWidget {
+  final String demandId;
+  final String productName;
+  final String category;
+  final num quantity;
+  final String unit;
+  final dynamic targetPrice;
+  final dynamic deliveryAddress;
+  final dynamic latitude;
+  final dynamic longitude;
+  final String shopOwnerName;
+  final String shopOwnerPhone;
+  final String notes;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
   final VoidCallback? onTap;
 
   const DemandCard({
     super.key,
-    required this.title,
-    required this.distance,
-    required this.subtitle,
+    required this.demandId,
+    required this.productName,
+    required this.category,
+    required this.quantity,
+    required this.unit,
+    this.targetPrice,
+    this.deliveryAddress,
+    this.latitude,
+    this.longitude,
+    required this.shopOwnerName,
+    required this.shopOwnerPhone,
+    this.notes = '',
     required this.onAccept,
     required this.onDecline,
     this.onTap,
   });
+
+  @override
+  State<DemandCard> createState() => _DemandCardState();
+}
+
+class _DemandCardState extends State<DemandCard> {
+  String? _resolvedAddress;
+  bool _resolving = false;
+
+  double? get _lat => widget.latitude is num
+      ? (widget.latitude as num).toDouble()
+      : double.tryParse(widget.latitude?.toString() ?? '');
+  double? get _lng => widget.longitude is num
+      ? (widget.longitude as num).toDouble()
+      : double.tryParse(widget.longitude?.toString() ?? '');
+
+  bool get _hasPin => _lat != null && _lng != null;
+
+  String get _addressText {
+    final addr = (widget.deliveryAddress ?? '').toString().trim();
+    if (addr.isNotEmpty) return addr;
+    if (_resolvedAddress != null) return _resolvedAddress!;
+    return '';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Reverse-geocode when no textual address exists but a pin does.
+    if ((widget.deliveryAddress ?? '').toString().trim().isEmpty && _hasPin) {
+      _reverseGeocode();
+    }
+  }
+
+  Future<void> _reverseGeocode() async {
+    if (_resolving) return;
+    _resolving = true;
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?format=json&zoom=16&lat=$_lat&lon=$_lng',
+      );
+      final res = await http
+          .get(uri, headers: {'User-Agent': 'TradeLinkApp/1.0'})
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200 && mounted) {
+        final body = jsonDecode(res.body);
+        final name = body['display_name']?.toString();
+        if (name != null && name.isNotEmpty) {
+          setState(() => _resolvedAddress = name);
+        }
+      }
+    } catch (_) {
+      // Silent — fall back to coordinate display
+    } finally {
+      _resolving = false;
+    }
+  }
+
+  void _openMapSheet() {
+    if (!_hasPin) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DemandLocationSheet(
+        productName: widget.productName,
+        addressText: _addressText.isNotEmpty
+            ? _addressText
+            : '$_lat, $_lng',
+        lat: _lat!,
+        lng: _lng!,
+      ),
+    );
+  }
+
+  String get _targetPriceLabel {
+    if (widget.targetPrice == null) return 'No budget set';
+    final t = widget.targetPrice is num
+        ? (widget.targetPrice as num).toDouble()
+        : double.tryParse(widget.targetPrice.toString());
+    if (t == null) return 'No budget set';
+    return '৳${t == t.roundToDouble() ? t.toInt().toString() : t.toStringAsFixed(2)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -477,44 +590,185 @@ class DemandCard extends StatelessWidget {
         child: Material(
           color: Colors.white,
           child: InkWell(
-            onTap: onTap,
+            onTap: widget.onTap,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header: product name + category badge
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Text(
-                          title,
+                          widget.productName,
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 17,
                             color: Color(0xFF111827),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
+                      if (widget.category.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF8F6),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                                color: const Color(0xFF0F766E), width: 0.8),
+                          ),
+                          child: Text(
+                            widget.category,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F766E),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Quantity + unit and offered price
+                  Row(
+                    children: [
+                      const Icon(Icons.inventory_2_outlined,
+                          size: 15, color: Color(0xFF6B7280)),
+                      const SizedBox(width: 6),
                       Text(
-                        distance,
+                        '${widget.quantity} ${widget.unit}',
                         style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF6B7280),
+                            fontSize: 14, color: Color(0xFF374151)),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.payments_outlined,
+                          size: 15, color: Color(0xFF6B7280)),
+                      const SizedBox(width: 4),
+                      Text(
+                        _targetPriceLabel,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: widget.targetPrice != null
+                              ? const Color(0xFF0F5C4F)
+                              : const Color(0xFF9CA3AF),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
+                  const SizedBox(height: 10),
+                  // Shop owner details
+                  Row(
+                    children: [
+                      const Icon(Icons.storefront_outlined,
+                          size: 15, color: Color(0xFF6B7280)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          widget.shopOwnerName,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF374151),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (widget.shopOwnerPhone.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.phone_outlined,
+                            size: 13, color: Color(0xFF6B7280)),
+                        const SizedBox(width: 4),
+                        Text(
+                          widget.shopOwnerPhone,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF6B7280)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Delivery location — tap to open map
+                  InkWell(
+                    onTap: _hasPin ? _openMapSheet : null,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _hasPin
+                                ? Icons.location_on_rounded
+                                : Icons.location_off_outlined,
+                            size: 15,
+                            color: _hasPin
+                                ? const Color(0xFF0F766E)
+                                : const Color(0xFF9CA3AF),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _addressLabel(),
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: _hasPin
+                                    ? const Color(0xFF374151)
+                                    : const Color(0xFF9CA3AF),
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_hasPin) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.map_outlined,
+                                size: 15, color: Color(0xFF0F766E)),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'Map',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0F766E),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  // Notes quote box
+                  if (widget.notes.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border(
+                          left: BorderSide(
+                              color: const Color(0xFF0F766E), width: 3),
+                        ),
+                      ),
+                      child: Text(
+                        widget.notes,
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF4B5563)),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
@@ -522,7 +776,7 @@ class DemandCard extends StatelessWidget {
                           label: 'Decline',
                           backgroundColor: const Color(0xFFEAECF5),
                           textColor: const Color(0xFF374151),
-                          onPressed: onDecline,
+                          onPressed: widget.onDecline,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -531,7 +785,7 @@ class DemandCard extends StatelessWidget {
                           label: 'Accept',
                           backgroundColor: const Color(0xFF0F5C4F),
                           textColor: Colors.white,
-                          onPressed: onAccept,
+                          onPressed: widget.onAccept,
                         ),
                       ),
                     ],
@@ -543,6 +797,13 @@ class DemandCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _addressLabel() {
+    final text = _addressText;
+    if (text.isNotEmpty) return text;
+    if (_hasPin) return 'Location pin set ($_lat, $_lng)';
+    return 'No delivery address';
   }
 
   Widget _buildActionButton({
@@ -570,6 +831,110 @@ class DemandCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ==================== Demand Location Sheet ====================
+
+class _DemandLocationSheet extends StatelessWidget {
+  final String productName;
+  final String addressText;
+  final double lat;
+  final double lng;
+
+  const _DemandLocationSheet({
+    required this.productName,
+    required this.addressText,
+    required this.lat,
+    required this.lng,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.65,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 12),
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Delivery location — $productName',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        addressText,
+                        style: const TextStyle(
+                            fontSize: 12.5, color: Color(0xFF64748B)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded,
+                      color: Color(0xFF64748B)),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: LatLng(lat, lng),
+                initialZoom: 15.5,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate:
+                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.tradelink',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(lat, lng),
+                      width: 44,
+                      height: 44,
+                      child: const Icon(Icons.location_on_rounded,
+                          size: 40, color: Color(0xFF0F766E)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
