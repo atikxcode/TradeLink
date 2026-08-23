@@ -1,0 +1,13 @@
+{
+  "name": "tradelink-platform",
+  "private": true,
+  "version": "1.0.0",
+  "description": "TradeLink - root wrapper that delegates build/start to backend/",
+  "scripts": {
+    "build": "npm --prefix backend install && npm --prefix backend run build",
+    "start": "npm --prefix backend start"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
