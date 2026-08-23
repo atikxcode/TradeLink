@@ -7,7 +7,9 @@ export const env = {
     'postgresql://postgres:password@localhost:5432/tradelink',
   jwtSecret: process.env.JWT_SECRET ?? '',
   authProvider: process.env.AUTH_PROVIDER ?? 'supabase',
-  demoMode: (process.env.DEMO_MODE ?? 'false').toLowerCase() === 'true',
+  // Demo (X-User-Id header) auth is the default until Supabase-JWT
+  // login ships in the Flutter client. Override with DEMO_MODE=false.
+  demoMode: (process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true',
   corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:8080')
     .split(',')
     .map((o) => o.trim()),
