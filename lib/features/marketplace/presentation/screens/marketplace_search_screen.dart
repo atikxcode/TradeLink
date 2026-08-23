@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../models/marketplace_product_model.dart';
 import '../../services/marketplace_service.dart';
+import '../../widgets/bargain_sheet.dart';
 import 'product_detail_screen.dart';
+import 'direct_chat_screen.dart';
+import 'conversations_screen.dart';
+import 'shop_owner_bargains_screen.dart';
 
 class MarketplaceSearchScreen extends StatefulWidget {
   const MarketplaceSearchScreen({super.key});
@@ -234,6 +239,32 @@ class _MarketplaceSearchScreenState extends State<MarketplaceSearchScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF374151)),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Chats',
+            icon: const Icon(Icons.chat_bubble_outline,
+                color: Color(0xFF374151)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const ConversationsScreen()),
+              );
+            },
+          ),
+          IconButton(
+            tooltip: 'My Bargains',
+            icon: const Icon(Icons.handshake_outlined, color: Color(0xFF374151)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const ShopOwnerBargainsScreen()),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: Column(
         children: [
@@ -478,6 +509,28 @@ class _MarketplaceSearchScreenState extends State<MarketplaceSearchScreen> {
     );
   }
 
+  /// Starts (or fetches) a chat thread for this product's supplier and
+  /// opens the direct conversation.
+  Future<void> _startChatWithSeller(MarketplaceProductModel product) async {
+    final result = await ApiService.post('/chats/start', body: {
+      'productId': product.stockId,
+      'stockholderId': product.stockholderId,
+    });
+    if (!mounted) return;
+    if (result != null && result['id'] != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DirectChatScreen(chatId: result['id'].toString()),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not start chat. Try again.'),
+          backgroundColor: Colors.orange));
+    }
+  }
+
   Widget _buildProductCard(MarketplaceProductModel product) {
     return GestureDetector(
       onTap: () {
@@ -563,6 +616,85 @@ class _MarketplaceSearchScreenState extends State<MarketplaceSearchScreen> {
                           ),
                         ),
                         _buildStockBadge(product),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Action row: Chat | Buy Now | Negotiate
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 34,
+                          height: 34,
+                          child: IconButton.filledTonal(
+                            tooltip: 'Chat with seller',
+                            onPressed: product.inStock || true
+                                ? () => _startChatWithSeller(product)
+                                : null,
+                            icon: const Icon(Icons.forum_outlined, size: 16),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFEEF8F6),
+                              foregroundColor: AppColors.primaryTeal,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SizedBox(
+                            height: 34,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ProductDetailScreen(
+                                      product: product,
+                                      shopLat: _shopLat ?? 23.777176,
+                                      shopLng: _shopLng ?? 90.399451,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.shopping_cart_outlined,
+                                  size: 14),
+                              label: const Text('Buy Now',
+                                  style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primaryTeal,
+                                side: const BorderSide(
+                                    color: AppColors.primaryTeal, width: 1),
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SizedBox(
+                            height: 34,
+                            child: ElevatedButton.icon(
+                              onPressed: product.inStock
+                                  ? () => showBargainSheet(context, product)
+                                  : null,
+                              icon: const Icon(Icons.handshake_outlined,
+                                  size: 14),
+                              label: const Text('Negotiate',
+                                  style: TextStyle(fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryTeal,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor:
+                                    const Color(0xFFD1D5DB),
+                                elevation: 0,
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ],

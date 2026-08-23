@@ -10,6 +10,8 @@ import 'notifications_screen.dart';
 import 'stock_screen.dart';
 import 'profile_screen.dart';
 import 'pending_orders_screen.dart';
+import '../../../marketplace/presentation/screens/supplier_negotiation_inbox.dart';
+import '../../../marketplace/presentation/screens/conversations_screen.dart';
 
 class StockholderHomeScreen extends StatefulWidget {
   const StockholderHomeScreen({super.key});
@@ -44,6 +46,7 @@ class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
                     _StockholderDashboard(),
                     StockScreen(),
                     PendingOrdersScreen(embedded: true),
+                    ConversationsScreen(),
                     ProfileScreen(),
                   ],
                 ),
@@ -85,6 +88,11 @@ class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_outlined),
             label: 'Orders',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline),
+            activeIcon: Icon(Icons.chat_bubble),
+            label: 'Chats',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
@@ -171,6 +179,27 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
             ),
           ),
           const SizedBox(width: 12),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const SupplierNegotiationInbox()),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF0F3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.handshake_outlined,
+                  size: 20, color: Color(0xFF374151)),
+            ),
+          ),
+          const SizedBox(width: 8),
           InkWell(
             onTap: () {
               Navigator.push(

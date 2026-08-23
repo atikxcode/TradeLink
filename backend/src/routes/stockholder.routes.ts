@@ -43,6 +43,23 @@ import {
   getProductsByCategoryHandler,
 } from '../controllers/marketplaceController.js';
 import { assistantChatHandler, placeChatbotOrderHandler } from '../controllers/assistantController.js';
+import {
+  startChatHandler,
+  getUserChatsHandler,
+  getChatMessagesHandler,
+  sendChatMessageHandler,
+} from '../controllers/chatController.js';
+import {
+  initiateNegotiationHandler,
+  getShopOwnerNegotiationsHandler,
+  getSupplierNegotiationsHandler,
+  counterNegotiationHandler,
+  respondToNegotiationHandler,
+  sendNegotiationMessageHandler,
+  getNegotiationMessagesHandler,
+  getSupplierNegotiationsByIdHandler,
+  finalizeNegotiationHandler,
+} from '../controllers/negotiationController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
 import { requireSupplier } from '../middleware/auth.js';
 
@@ -129,8 +146,25 @@ router.get('/notifications/unread-count', getUnreadCountHandler);
 router.patch('/notifications/mark-read', markReadHandler);
 router.patch('/notifications/:id/read', markOneReadHandler);
 
+// ---- Direct messaging (buyer-seller chat) ----
+router.post('/chats/start', startChatHandler);
+router.get('/chats/user', getUserChatsHandler);
+router.post('/chats/:chatId/messages', sendChatMessageHandler);
+router.get('/chats/:chatId/messages', getChatMessagesHandler);
+
 // ---- Reviews ----
 router.post('/reviews', submitReviewHandler);
+
+// ---- Negotiations (price bargaining) ----
+router.post('/negotiations/initiate', initiateNegotiationHandler);
+router.get('/negotiations/shop-owner', getShopOwnerNegotiationsHandler);
+router.get('/negotiations/supplier', getSupplierNegotiationsHandler);
+router.get('/negotiations/supplier/:stockholderId', getSupplierNegotiationsByIdHandler);
+router.post('/negotiations/message', sendNegotiationMessageHandler);
+router.post('/negotiations/counter', counterNegotiationHandler);
+router.post('/negotiations/respond', respondToNegotiationHandler);
+router.get('/negotiations/:id/messages', getNegotiationMessagesHandler);
+router.post('/negotiations/:id/finalize', finalizeNegotiationHandler);
 router.get('/reviews/resolve-order', resolveOrderHandler);
 router.get('/reviews/supplier/:supplierId', getSupplierRatingHandler);
 router.get('/reviews/inventory/:inventoryId/reviews', listInventoryReviewsHandler);

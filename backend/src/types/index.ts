@@ -99,6 +99,8 @@ export interface OrderItem {
   productName: string;
   quantity: number;
   unit: string;
+  unitPrice?: number | null;
+  paymentStatus?: string;
   totalAmount: number;
   status: OrderStatus;
   deliveryAddress: string | null;

@@ -28,6 +28,8 @@ function mapOrderRow(row: any): OrderItem {
     quantity: Number(row.quantity),
     unit: row.unit,
     totalAmount: Number(row.total_amount),
+    unitPrice: row.unit_price != null ? Number(row.unit_price) : null,
+    paymentStatus: row.payment_status ?? undefined,
     status: row.status,
     deliveryAddress: row.delivery_address ?? null,
     deliveryOtp: row.delivery_otp ?? null,
@@ -87,8 +89,8 @@ export async function createDirectOrder(
     // 3. Create the order as PENDING (supplier must accept)
     const { rows: orderRows } = await client.query(
       `INSERT INTO orders
-         (shop_owner_id, supplier_id, inventory_id, product_name, quantity, unit, total_amount, status, delivery_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
+         (shop_owner_id, supplier_id, inventory_id, product_name, quantity, unit, unit_price, total_amount, status, delivery_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
        RETURNING *`,
       [
         shopOwnerId,
@@ -97,6 +99,7 @@ export async function createDirectOrder(
         stock.custom_product_name,
         payload.quantity,
         stock.unit,
+        stock.price_per_unit,
         totalAmount,
         payload.deliveryAddress ?? null,
       ],

@@ -10,6 +10,7 @@ import 'stock_screen.dart';
 import 'orders_screen.dart';
 import 'profile_screen.dart';
 import 'tradelink_assistant_screen.dart';
+import '../../../marketplace/presentation/screens/conversations_screen.dart';
 
 class ShopOwnerHomeScreen extends StatefulWidget {
   const ShopOwnerHomeScreen({super.key});
@@ -82,6 +83,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
           // Optional: refresh dashboard data if needed
         },
       ),
+      const ConversationsScreen(),
       const ProfileScreen(),
     ];
   }
@@ -249,6 +251,11 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
             icon: Icon(Icons.add_circle_outline),
             activeIcon: Icon(Icons.add_circle),
             label: 'Post',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_outline),
+            activeIcon: Icon(Icons.chat_bubble),
+            label: 'Chats',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

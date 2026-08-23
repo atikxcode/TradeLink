@@ -4,6 +4,7 @@ import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import '../../models/marketplace_product_model.dart';
+import 'direct_chat_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final MarketplaceProductModel product;
@@ -341,6 +342,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Chat with seller',
+            icon: const Icon(Icons.forum_outlined, color: Color(0xFF374151)),
+            onPressed: () async {
+              final result = await ApiService.post('/chats/start', body: {
+                'productId': product.stockId,
+                'stockholderId': product.stockholderId,
+              });
+              if (!mounted) return;
+              if (result != null && result['id'] != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DirectChatScreen(
+                        chatId: result['id'].toString()),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
         title: Text(
           product.productName,
           style: const TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w700, fontSize: 18),
