@@ -4,7 +4,7 @@ import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import 'login_screen.dart';
-import 'edit_profile_screen.dart';
+import 'profile_settings_screen.dart';
 import 'orders_screen.dart';
 import 'settings_screen.dart';
 
@@ -331,9 +331,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 (icon: Icons.inventory_2_outlined, value: '$_totalFulfilled', label: 'Total Fulfilled'),
               ]
             : [
-                (icon: Icons.star_rounded, value: _rating.toStringAsFixed(1), label: 'AVG. Rating'),
-                (icon: Icons.local_shipping_outlined, value: '$_activeOrders', label: 'Active Orders'),
-                (icon: Icons.request_quote_outlined, value: '$_totalDemands', label: 'Total Demands'),
+                (icon: Icons.local_shipping_outlined,
+                    value: '$_activeOrders',
+                    label: 'Processing Orders'),
+                (icon: Icons.request_quote_outlined,
+                    value: '$_totalDemands',
+                    label: 'Total Demands'),
               ];
 
     return Container(
@@ -388,11 +391,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _tile(Icons.person_outline_rounded, 'Profile Settings',
               subtitle: 'Name, phone, business details',
-              onTap: _openEditor),
+              onTap: _openSettings),
           _divider(),
           _tile(Icons.location_on_outlined, 'Location & Delivery Address',
               subtitle: _address.isEmpty ? 'Not set' : _address,
-              onTap: _openEditor),
+              onTap: _openSettings),
           _divider(),
           if (!_isSupplier)
             _tile(Icons.receipt_long_outlined, 'Order History',
@@ -470,19 +473,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _openEditor() async {
+  Map<String, dynamic> _userPayload() => {
+        'fullName': _fullName,
+        'businessName': _businessName,
+        'phoneNumber': _phone,
+        'address': _address,
+        'role': _actualRole,
+      };
+
+  Future<void> _openSettings() async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => EditProfileScreen(
-          initialData: {
-            'fullName': _fullName,
-            'businessName': _businessName,
-            'phoneNumber': _phone,
-            'address': _address,
-            'category': '',
-          },
-        ),
+        builder: (_) =>
+            ProfileSettingsScreen(initialData: _userPayload()),
       ),
     );
     if (mounted) {
