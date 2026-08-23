@@ -77,6 +77,7 @@ export interface NearbyDemand {
   latitude?: number | null;
   longitude?: number | null;
   distanceKm?: number | null;
+  supplierMatchCount?: number;
   shopOwnerName?: string;
   shopOwnerPhone?: string;
   status: DemandStatus;
