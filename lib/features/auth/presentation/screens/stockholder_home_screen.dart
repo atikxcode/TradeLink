@@ -357,6 +357,7 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
                   deliveryAddress: demand['deliveryAddress'],
                   latitude: demand['latitude'],
                   longitude: demand['longitude'],
+                  supplierMatchCount: (demand['supplierMatchCount'] as num?)?.toInt() ?? 0,
                   shopOwnerName: demand['shopOwnerName'] ?? 'Shop Owner',
                   shopOwnerPhone: demand['shopOwnerPhone'] ?? '',
                   notes: demand['notes'] ?? '',
@@ -467,6 +468,7 @@ class DemandCard extends StatefulWidget {
   final dynamic deliveryAddress;
   final dynamic latitude;
   final dynamic longitude;
+  final int supplierMatchCount;
   final String shopOwnerName;
   final String shopOwnerPhone;
   final String notes;
@@ -485,6 +487,7 @@ class DemandCard extends StatefulWidget {
     this.deliveryAddress,
     this.latitude,
     this.longitude,
+    this.supplierMatchCount = 0,
     required this.shopOwnerName,
     required this.shopOwnerPhone,
     this.notes = '',
@@ -632,6 +635,35 @@ class _DemandCardState extends State<DemandCard> {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  // How many suppliers currently match this demand
+                  if (widget.supplierMatchCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF8F6),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                            color: const Color(0xFF0F766E), width: 0.8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.group_outlined,
+                              size: 13, color: Color(0xFF0F766E)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${widget.supplierMatchCount} ${widget.supplierMatchCount == 1 ? 'supplier' : 'suppliers'} match',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F766E),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 10),
                   // Quantity + unit and offered price
                   Row(

@@ -19,6 +19,7 @@ export interface DemandRow {
   delivery_address: string;
   latitude: number | null;
   longitude: number | null;
+  supplier_match_count: number | null;
   shop_owner_name: string;
   shop_owner_phone: string;
 }
@@ -40,6 +41,7 @@ export function mapDemandRow(row: DemandRow): NearbyDemand {
     longitude: row.longitude != null ? Number(row.longitude) : null,
     distanceKm:
       (row as any).distance_km != null ? Number((row as any).distance_km) : null,
+    supplierMatchCount: row.supplier_match_count != null ? Number(row.supplier_match_count) : 0,
     shopOwnerName: row.shop_owner_name,
     shopOwnerPhone: row.shop_owner_phone,
   };
@@ -81,8 +83,9 @@ export async function getHomeStats(userId: string): Promise<HomeStatsResponse> {
                 * COS(RADIANS(d.longitude) - RADIANS($2))
                 + SIN(RADIANS($1)) * SIN(RADIANS(d.latitude))
               ))
-            ) AS numeric), 1) AS distance_km
-     FROM demands d
+            ) AS numeric), 1) AS distance_km,
+            public.count_matching_suppliers(d.product_name) AS supplier_match_count
+      FROM demands d
      LEFT JOIN users u ON u.id = d.shop_owner_id
      WHERE d.status IN ('open', 'pending')
        AND d.latitude IS NOT NULL AND d.longitude IS NOT NULL
