@@ -55,7 +55,7 @@ class AssistantMessage {
 /// Sends the user's message to the backend `/assistant/chat` endpoint which
 /// performs intent classification, NLU parsing, and PostgreSQL search.
 class AssistantService {
-  static String get _baseUrl => 'http://localhost:8081/api/v1';
+  static String get _baseUrl => 'http://192.168.1.101:8081/api/v1';
 
   static Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();
