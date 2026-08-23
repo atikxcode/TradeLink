@@ -2,9 +2,11 @@ import 'dotenv/config';
 
 export const env = {
   port: Number(process.env.PORT ?? 8081),
+  // Production Supabase Postgres as default so cloud deploys always
+  // connect; override locally with DATABASE_URL when needed.
   databaseUrl:
     process.env.DATABASE_URL ??
-    'postgresql://postgres:password@localhost:5432/tradelink',
+    'postgresql://postgres.osnhftjsormgodsabdbn:CSE327%40TradeLink@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres',
   jwtSecret: process.env.JWT_SECRET ?? '',
   authProvider: process.env.AUTH_PROVIDER ?? 'supabase',
   // Demo (X-User-Id header) auth is the default until Supabase-JWT
