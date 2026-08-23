@@ -2,14 +2,15 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/config/api_config.dart';
 import '../models/marketplace_product_model.dart';
 
 class MarketplaceService {
   static String get _baseUrl {
     if (kIsWeb) {
-      return 'https://tradelink-2.onrender.com/api/v1';
+      return ApiConfig.baseUrl;
     }
-    return 'https://tradelink-2.onrender.com/api/v1';
+    return ApiConfig.baseUrl;
   }
 
   static Future<Map<String, String>> _headers() async {
