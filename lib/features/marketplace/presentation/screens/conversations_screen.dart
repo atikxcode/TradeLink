@@ -10,8 +10,13 @@ const Color _csMutedText = Color(0xFF64748B);
 const Color _csBorderGray = Color(0xFFE2E8F0);
 
 /// Shared "Chats" inbox for both Shop Owners and Suppliers.
+/// Embedded as a bottom-nav tab: the header back chevron never pops
+/// the root navigator — it delegates to [onBackTap] (switch to Home).
 class ConversationsScreen extends StatefulWidget {
-  const ConversationsScreen({super.key});
+  final bool showBack;
+  final VoidCallback? onBackTap;
+
+  const ConversationsScreen({super.key, this.showBack = false, this.onBackTap});
 
   @override
   State<ConversationsScreen> createState() => _ConversationsScreenState();
@@ -75,13 +80,18 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: false, // never pop the root stack
         title: const Text('Chats',
             style:
                 TextStyle(color: _csDarkText, fontWeight: FontWeight.w700)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF374151)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: (widget.showBack && widget.onBackTap != null)
+            ? IconButton(
+                tooltip: 'Back to Home',
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 18, color: Color(0xFF374151)),
+                onPressed: widget.onBackTap,
+              )
+            : null,
       ),
       body: _isLoading
           ? const Center(

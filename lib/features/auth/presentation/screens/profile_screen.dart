@@ -28,7 +28,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = true;
   String _actualRole = 'shop_owner'; // from server/prefs
-  String _uiOverride = ''; // '', 'supplier', 'shop_owner'
   String _fullName = '';
   String _businessName = '';
   String _phone = '';
@@ -39,12 +38,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _totalFulfilled = 0;
 
 
-  String get _effectiveRole {
-    if (_uiOverride == 'supplier') return 'supplier';
-    if (_uiOverride == 'shop_owner') return 'shop_owner';
-    return _actualRole;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -53,7 +46,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadEverything() async {
     await _loadProfile();
-    await _loadOverride();
   }
 
   Future<void> _loadProfile() async {
@@ -80,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  bool _isSupplierView() => _effectiveRole == 'supplier';
+  bool get _isSupplier => _actualRole == 'supplier';
 
   /// Offline fallback when /profile is unreachable.
   Future<void> _loadFromPrefs() async {
@@ -102,30 +94,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  Future<void> _loadOverride() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      _uiOverride = prefs.getString('ui_mode_override') ?? '';
-    });
-  }
-
-  Future<void> _toggleMode(bool toSupplier) async {
-    final prefs = await SharedPreferences.getInstance();
-    final newValue =
-        toSupplier ? (_actualRole == 'supplier' ? '' : 'supplier') : (_actualRole == 'shop_owner' ? '' : 'shop_owner');
-    await prefs.setString('ui_mode_override', newValue);
-    if (!mounted) return;
-    setState(() => _uiOverride = newValue);
-    setState(() {}); // re-derive labels for the selected view
-  }
-
   String get _displayName {
     final n = _businessName.trim().isNotEmpty
         ? _businessName
         : _fullName.trim();
     if (n.isEmpty || RegExp(r'^\d+$').hasMatch(n)) {
-      return _isSupplierView() ? 'My Store' : 'My Shop';
+      return _isSupplier ? 'My Store' : 'My Shop';
     }
     return n;
   }
@@ -218,10 +192,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _buildStatsRow(),
               ),
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _buildModeSwitchCard(),
-              ),
               const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -333,18 +303,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
-            color: _isSupplierView()
+            color: _isSupplier
                 ? const Color(0xFFEEF8F6)
                 : const Color(0xFFEFF6FF),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            _isSupplierView() ? 'SUPPLIER' : 'SHOP OWNER',
+            _isSupplier ? 'SUPPLIER' : 'SHOP OWNER',
             style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
-                color: _isSupplierView() ? _brand : const Color(0xFF2563EB)),
+                color: _isSupplier ? _brand : const Color(0xFF2563EB)),
           ),
         ),
       ],
@@ -354,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ── Stats row ──
   Widget _buildStatsRow() {
     final List<({IconData icon, String value, String label})> stats =
-        _isSupplierView()
+        _isSupplier
             ? [
                 (icon: Icons.star_rounded, value: _rating.toStringAsFixed(1), label: 'AVG. Rating'),
                 (icon: Icons.emoji_events_rounded, value: _rankLabel, label: 'Current Rank'),
@@ -406,58 +376,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Role mode switch ──
-  Widget _buildModeSwitchCard() {
-    final viewingSupplier = _isSupplierView();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border),
-      ),
-      child: Row(
-        children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: viewingSupplier ? 3.14 : 0),
-            duration: const Duration(milliseconds: 400),
-            builder: (_, angle, __) => Transform.rotate(
-              angle: angle,
-              child: const Icon(Icons.sync_rounded,
-                  size: 22, color: _brand),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  viewingSupplier
-                      ? 'Switch to Shop Owner Mode'
-                      : 'Switch to Supplier Mode',
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _textDark),
-                ),
-                const Text(
-                  'Preview only — your account type stays the same.',
-                  style: TextStyle(fontSize: 11, color: _textMuted),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: viewingSupplier,
-            activeColor: _brand,
-            onChanged: _toggleMode,
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Settings list ──
   Widget _buildSettingsList() {
     return Container(
@@ -476,7 +394,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               subtitle: _address.isEmpty ? 'Not set' : _address,
               onTap: _openEditor),
           _divider(),
-          if (!_isSupplierView())
+          if (!_isSupplier)
             _tile(Icons.receipt_long_outlined, 'Order History',
                 onTap: () => _push(const OrdersScreen()))
           else

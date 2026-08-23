@@ -26,33 +26,28 @@ class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(32),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              _StockholderHeader(),
-              const Divider(height: 1, color: Color(0xFFE5E7EB)),
-              Expanded(
-                child: IndexedStack(
-                  index: _currentIndex,
-                  children: const [
-                    _StockholderDashboard(),
-                    StockScreen(),
-                    PendingOrdersScreen(embedded: true),
-                    ConversationsScreen(),
-                    ProfileScreen(),
-                  ],
-                ),
+        child: Column(
+          children: [
+            _StockholderHeader(),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: [
+                  const _StockholderDashboard(),
+                  const StockScreen(),
+                  const PendingOrdersScreen(embedded: true),
+                  ConversationsScreen(
+                    showBack: true,
+                    onBackTap: () => setState(() => _currentIndex = 0),
+                  ),
+                  const ProfileScreen(),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -121,7 +116,16 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
 
   Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
-    final name = prefs.getString('user_business') ?? prefs.getString('user_name') ?? '';
+    // Graceful fallback: never show bare user IDs ("2") as names.
+    String pretty(String? raw) {
+      final n = (raw ?? '').trim();
+      if (n.isEmpty || RegExp(r'^\d+$').hasMatch(n)) return 'My Store';
+      return n;
+    }
+
+    final name = pretty(
+      prefs.getString('user_business') ?? prefs.getString('user_name'),
+    );
     setState(() {
       _businessName = name;
       if (name.isNotEmpty) {

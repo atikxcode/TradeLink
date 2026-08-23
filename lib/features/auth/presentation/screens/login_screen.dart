@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               decoration: BoxDecoration(
                 color: AppColors.cardLight,
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),
@@ -142,13 +142,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Mock Mobile Status Bar (Matches design header)
-                    const _MockStatusBar(),
-
+                borderRadius: BorderRadius.circular(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                       child: Column(
@@ -235,7 +232,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                             decoration: InputDecoration(
-                              hintText: '+880 1XXX-XXXXXX',
+                              prefixText: '+880 ',
+                              prefixStyle: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                              hintText: '1XXX-XXXXXX',
                               hintStyle: const TextStyle(
                                 color: AppColors.textHint,
                                 fontWeight: FontWeight.normal,
@@ -356,36 +359,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 24),
 
-                          // Log in Button
-                          SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _handleLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryTeal,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 22,
-                                      width: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Log in',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                            ),
+                          // Log in Button (subtle press animation)
+                          _AnimatedPressButton(
+                            onPressed: _isLoading ? null : _handleLogin,
+                            label: 'Log in',
+                            isLoading: _isLoading,
                           ),
 
                           const SizedBox(height: 28),
@@ -525,40 +503,71 @@ class _RoleTabItem extends StatelessWidget {
   }
 }
 
-/// Status Bar simulation to match the provided mockup
-class _MockStatusBar extends StatelessWidget {
-  const _MockStatusBar();
+/// Status bar is handled natively by SafeArea — no mock simulation.
+
+
+/// Full-width brand button with a subtle press-scale animation.
+class _AnimatedPressButton extends StatefulWidget {
+  final VoidCallback? onPressed;
+  final String label;
+  final bool isLoading;
+
+  const _AnimatedPressButton({
+    required this.onPressed,
+    required this.label,
+    this.isLoading = false,
+  });
+
+  @override
+  State<_AnimatedPressButton> createState() => _AnimatedPressButtonState();
+}
+
+class _AnimatedPressButtonState extends State<_AnimatedPressButton> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            '9:41',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          Row(
-            children: const [
-              Icon(Icons.signal_cellular_alt, size: 14, color: AppColors.textPrimary),
-              SizedBox(width: 4),
-              Text(
-                'Wi-Fi 100%',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            onPressed: widget.onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F4C3A),
+              foregroundColor: Colors.white,
+              elevation: _pressed ? 1 : 3,
+              shadowColor: const Color(0xFF0F4C3A).withValues(alpha: 0.35),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
+            ),
+            child: widget.isLoading
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(
+                    widget.label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
           ),
-        ],
+        ),
       ),
     );
   }

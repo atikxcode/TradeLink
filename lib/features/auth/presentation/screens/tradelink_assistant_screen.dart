@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
+import 'shop_owner_home_screen.dart';
 import 'models/supplier_result.dart';
 import 'services/assistant_service.dart';
 import 'supplier_comparison_screen.dart';
@@ -240,7 +241,51 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _asScreenBg,
-      appBar: _buildAppBar(context),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        titleSpacing: 0,
+        // Standard AppBar auto-clears the status bar / Dynamic Island.
+        leadingWidth: 60,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              size: 18, color: Color(0xFF64748B)),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              // Fallback if launched as a root screen
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ShopOwnerHomeScreen()),
+              );
+            }
+          },
+        ),
+        title: _buildTitleBlock(),
+        actions: [
+          Container(
+            width: 34,
+            height: 34,
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: _asLightGrayBox,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.more_horiz_rounded,
+              size: 20,
+              color: _asDarkText,
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -284,62 +329,6 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
       }
       return _AssistantBubble(text: msg.text);
     }).toList();
-  }
-
-  // ---------- AppBar ----------
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(60),
-      child: Container(
-        height: 60,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(bottom: BorderSide(color: _asBorderGray)),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            _buildBackButton(context),
-            const SizedBox(width: 12),
-            _buildTitleBlock(),
-            const Spacer(),
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: _asLightGrayBox,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.more_horiz_rounded,
-                size: 20,
-                color: _asDarkText,
-              ),
-            ),
-            const SizedBox(width: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBackButton(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.pop(context),
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: _asLightGrayBox,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.arrow_back_ios_new_rounded,
-          size: 16,
-          color: _asMutedText,
-        ),
-      ),
-    );
   }
 
   Widget _buildTitleBlock() {

@@ -259,7 +259,11 @@ class _NegotiationChatScreenState extends State<NegotiationChatScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF374151)),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
         ),
       ),
       body: _negotiation == null
