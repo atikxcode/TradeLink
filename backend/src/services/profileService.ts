@@ -73,7 +73,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
             rating,
             (SELECT COUNT(*)::int FROM orders o
               WHERE o.shop_owner_id = users.id
-                AND o.status IN ('pending','accepted','out_for_delivery','in_transit')
+                AND o.status IN ('accepted','out_for_delivery','in_transit')
             ) AS active_orders,
             (SELECT COUNT(*)::int FROM demands d
               WHERE d.shop_owner_id = users.id
