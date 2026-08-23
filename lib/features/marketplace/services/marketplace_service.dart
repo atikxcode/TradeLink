@@ -7,9 +7,9 @@ import '../models/marketplace_product_model.dart';
 class MarketplaceService {
   static String get _baseUrl {
     if (kIsWeb) {
-      return 'http://localhost:8081/api/v1';
+      return 'http://192.168.1.101:8081/api/v1';
     }
-    return 'http://localhost:8081/api/v1';
+    return 'http://192.168.1.101:8081/api/v1';
   }
 
   static Future<Map<String, String>> _headers() async {

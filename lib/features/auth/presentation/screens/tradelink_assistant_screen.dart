@@ -960,7 +960,7 @@ class _DirectOrderBottomSheetState extends State<_DirectOrderBottomSheet> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
-      final uri = Uri.parse('http://localhost:8081/api/v1/orders/direct');
+      final uri = Uri.parse('http://192.168.1.101:8081/api/v1/orders/direct');
 
       final response = await http.post(
         uri,

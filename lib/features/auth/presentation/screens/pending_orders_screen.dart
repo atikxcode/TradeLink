@@ -198,7 +198,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
       final role = prefs.getString('user_role') ?? 'supplier';
-      final uri = Uri.parse('http://localhost:8081/api/v1$path');
+      final uri = Uri.parse('http://192.168.1.101:8081/api/v1$path');
 
       final response = await http.post(
         uri,
@@ -225,7 +225,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
       final role = prefs.getString('user_role') ?? 'supplier';
-      final uri = Uri.parse('http://localhost:8081/api/v1$path');
+      final uri = Uri.parse('http://192.168.1.101:8081/api/v1$path');
 
       final response = await http.post(
         uri,
