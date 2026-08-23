@@ -19,6 +19,8 @@ function mapOrderRow(row: any): OrderItem {
     quantity: Number(row.quantity),
     unit: row.unit,
     totalAmount: Number(row.total_amount),
+    unitPrice: row.unit_price != null ? Number(row.unit_price) : null,
+    paymentStatus: row.payment_status ?? undefined,
     status: row.status,
     deliveryAddress: row.delivery_address ?? null,
     deliveryOtp: row.delivery_otp ?? null,

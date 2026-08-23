@@ -51,6 +51,8 @@ export function mapOrderRow(row: OrderRow): OrderItem {
     quantity: row.quantity,
     unit: row.unit,
     totalAmount: row.total_amount,
+    unitPrice: (row as any).unit_price != null ? Number((row as any).unit_price) : null,
+    paymentStatus: (row as any).payment_status ?? undefined,
     status: row.status as OrderItem['status'],
     deliveryAddress: row.delivery_address,
     deliveryOtp: (row as any).delivery_otp ?? null,
@@ -140,8 +142,8 @@ export async function acceptDemand(
 
     const order = await client.query<OrderRow>(
       `INSERT INTO orders
-         (demand_id, shop_owner_id, supplier_id, inventory_id, product_name, quantity, unit, total_amount, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'accepted')
+         (demand_id, shop_owner_id, supplier_id, inventory_id, product_name, quantity, unit, unit_price, total_amount, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'accepted')
        RETURNING *`,
       [
         demandId,
@@ -151,6 +153,7 @@ export async function acceptDemand(
         demandRow.product_name,
         demandRow.quantity,
         demandRow.unit,
+        pricePerUnit,
         totalAmount,
       ],
     );
