@@ -6,8 +6,9 @@ export const env = {
     jwtSecret: process.env.JWT_SECRET ?? '',
     authProvider: process.env.AUTH_PROVIDER ?? 'supabase',
     // Demo (X-User-Id header) auth is the default until Supabase-JWT
-    // login ships in the Flutter client. Override with DEMO_MODE=false.
-    demoMode: (process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true',
+    // login ships in the Flutter client. ONLY an explicit DEMO_MODE=false
+    // disables it — empty/unset values stay in demo mode.
+    demoMode: (process.env.DEMO_MODE?.trim().toLowerCase() ?? 'true') !== 'false',
     corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:8080')
         .split(',')
         .map((o) => o.trim()),
