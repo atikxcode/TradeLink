@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
+import 'conversations_screen.dart';
 
 const Color _dcPrimaryTeal = Color(0xFF0F766E);
 const Color _dcScreenBg = Color(0xFFF8FAFC);
@@ -180,7 +181,17 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF374151)),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ConversationsScreen()),
+              );
+            }
+          },
         ),
       ),
       body: Column(

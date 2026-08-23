@@ -13,6 +13,10 @@ export interface UserProfile {
   latitude: number | null;
   longitude: number | null;
   address: string | null;
+  rating: number;
+  activeOrders: number;
+  totalDemands: number;
+  totalFulfilled: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +34,10 @@ interface UserRow {
   latitude: number | null;
   longitude: number | null;
   address: string | null;
+  rating: number | string | null;
+  active_orders: number;
+  total_demands: number;
+  total_fulfilled: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -48,6 +56,10 @@ function mapProfileRow(row: UserRow): UserProfile {
     latitude: row.latitude,
     longitude: row.longitude,
     address: row.address,
+    rating: Number(row.rating ?? 5),
+    activeOrders: Number(row.active_orders ?? 0),
+    totalDemands: Number(row.total_demands ?? 0),
+    totalFulfilled: Number(row.total_fulfilled ?? 0),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -57,7 +69,19 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
   const { rows } = await db.query<UserRow>(
     `SELECT id, role, full_name, phone_number, business_name, category,
             trade_license, min_order_value, supply_radius,
-            latitude, longitude, address, created_at, updated_at
+            latitude, longitude, address,
+            rating,
+            (SELECT COUNT(*)::int FROM orders o
+              WHERE o.shop_owner_id = users.id
+                AND o.status IN ('pending','accepted','out_for_delivery','in_transit')
+            ) AS active_orders,
+            (SELECT COUNT(*)::int FROM demands d
+              WHERE d.shop_owner_id = users.id
+            ) AS total_demands,
+            (SELECT COUNT(*)::int FROM orders o2
+              WHERE o2.supplier_id = users.id AND o2.status = 'delivered'
+            ) AS total_fulfilled,
+            created_at, updated_at
      FROM users
      WHERE id = $1`,
     [userId],
