@@ -32,11 +32,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _businessName = '';
   String _phone = '';
   String _address = '';
-  double _rating = 0;
-  int _activeOrders = 0;
-  int _totalDemands = 0;
-  int _totalFulfilled = 0;
-
 
   @override
   void initState() {
@@ -61,10 +56,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _businessName = s('businessName');
         _phone = s('phoneNumber');
         _address = s('address');
-        _rating = double.tryParse(s('rating')) ?? 5.0;
-        _activeOrders = int.tryParse(s('activeOrders')) ?? 0;
-        _totalDemands = int.tryParse(s('totalDemands')) ?? 0;
-        _totalFulfilled = int.tryParse(s('totalFulfilled')) ?? 0;
         _isLoading = false;
       });
     } else if (mounted) {
@@ -119,13 +110,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return 'Dhaka, Bangladesh';
     }
     return a.split(',').take(2).join(',').trim();
-  }
-
-  String get _rankLabel {
-    if (_rating >= 4.8) return 'Top 5%';
-    if (_rating >= 4.5) return 'Top 10%';
-    if (_rating >= 4.0) return 'Top 25%';
-    return '—';
   }
 
   Future<void> _logout() async {
@@ -186,11 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _buildHeader(),
               _buildProfileCard(),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _buildStatsRow(),
-              ),
               const SizedBox(height: 16),
               const SizedBox(height: 16),
               Padding(
@@ -318,64 +297,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // ── Stats row ──
-  Widget _buildStatsRow() {
-    final List<({IconData icon, String value, String label})> stats =
-        _isSupplier
-            ? [
-                (icon: Icons.star_rounded, value: _rating.toStringAsFixed(1), label: 'AVG. Rating'),
-                (icon: Icons.emoji_events_rounded, value: _rankLabel, label: 'Current Rank'),
-                (icon: Icons.inventory_2_outlined, value: '$_totalFulfilled', label: 'Total Fulfilled'),
-              ]
-            : [
-                (icon: Icons.local_shipping_outlined,
-                    value: '$_activeOrders',
-                    label: 'Processing Orders'),
-                (icon: Icons.request_quote_outlined,
-                    value: '$_totalDemands',
-                    label: 'Total Demands'),
-              ];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: List.generate(stats.length, (i) {
-          final s = stats[i];
-          return Expanded(
-            child: Column(
-              children: [
-                Icon(s.icon, size: 18, color: _brand),
-                const SizedBox(height: 4),
-                Text(s.value,
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: _textDark)),
-                const SizedBox(height: 2),
-                Text(s.label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 10.5, color: _textMuted)),
-              ],
-            ),
-          );
-        }),
-      ),
     );
   }
 

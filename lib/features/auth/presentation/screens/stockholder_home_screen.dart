@@ -28,7 +28,15 @@ class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Column(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFE6F4F1), Color(0xFFF3F0FF)],
+            ),
+          ),
+          child: Column(
           children: [
             _StockholderHeader(),
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
@@ -50,6 +58,7 @@ class _StockholderHomeScreenState extends State<StockholderHomeScreen> {
           ],
         ),
       ),
+    ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
@@ -147,8 +156,12 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFF0C896),
-              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
               child: Text(
@@ -156,7 +169,7 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: Colors.white,
                 ),
               ),
             ),

@@ -102,14 +102,23 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            const Divider(height: 1, color: Color(0xFFE5E7EB)),
-            Expanded(
-              child: IndexedStack(index: _currentIndex, children: _tabs),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFE6F4F1), Color(0xFFF3F0FF)],
             ),
-          ],
+          ),
+          child: Column(
+            children: [
+              _buildHeader(),
+              const Divider(height: 1, color: Color(0xFFE5E7EB)),
+              Expanded(
+                child: IndexedStack(index: _currentIndex, children: _tabs),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -125,8 +134,12 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFF0C896),
-              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
               child: Text(
@@ -134,7 +147,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -366,9 +379,16 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           const SizedBox(height: 24),
-          SizedBox(
+          // Post new demand — emerald → sky gradient
+          Container(
             height: 48,
             width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF10B981), Color(0xFF0284C7)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: ElevatedButton.icon(
               onPressed: () {
                 widget.onNavigateToPost();
@@ -379,7 +399,8 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryTeal,
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -389,6 +410,7 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
             ),
           ),
           const SizedBox(height: 12),
+          // Ask TradeLink Assistant — white with purple accent
           SizedBox(
             height: 48,
             width: double.infinity,
@@ -401,14 +423,19 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                   ),
                 );
               },
-              icon: const Icon(Icons.auto_awesome_rounded, size: 20),
+              icon: const Icon(Icons.auto_awesome_rounded,
+                  size: 20, color: Color(0xFF7C3AED)),
               label: const Text(
                 'Ask TradeLink Assistant',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF7C3AED)),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryTeal,
-                side: const BorderSide(color: AppColors.primaryTeal),
+                foregroundColor: const Color(0xFF7C3AED),
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF7C3AED), width: 1.4),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -416,9 +443,16 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
+          // Browse Marketplace — orange → pink gradient
+          Container(
             height: 48,
             width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF97316), Color(0xFFEC4899)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: ElevatedButton.icon(
               onPressed: () {
                 Navigator.push(
@@ -434,7 +468,8 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E0B),
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -446,14 +481,26 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
           const SizedBox(height: 24),
           Row(
             children: [
-              _StatCard(number: '$_openDemandsCount', label: 'Open\ndemands'),
+              _StatCard(
+                number: '$_openDemandsCount',
+                label: 'Open\ndemands',
+                accent: const Color(0xFF7C3AED),
+                numberColor: const Color(0xFF6D28D9),
+              ),
               const SizedBox(width: 12),
               _StatCard(
                 number: '$_outForDeliveryCount',
                 label: 'Out for\ndelivery',
+                accent: const Color(0xFFF97316),
+                numberColor: const Color(0xFFC2410C),
               ),
               const SizedBox(width: 12),
-              _StatCard(number: '$_completedCount', label: 'Completed\n'),
+              _StatCard(
+                number: '$_completedCount',
+                label: 'Completed\n',
+                accent: const Color(0xFF0284C7),
+                numberColor: const Color(0xFF0F766E),
+              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -550,34 +597,59 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
 class _StatCard extends StatelessWidget {
   final String number;
   final String label;
+  final Color? accent;
+  final Color? numberColor;
 
-  const _StatCard({required this.number, required this.label});
+  const _StatCard({
+    required this.number,
+    required this.label,
+    this.accent,
+    this.numberColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              number,
-              style: const TextStyle(
-                fontSize: 26,
-                color: Color(0xFF111827),
-                fontWeight: FontWeight.w700,
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top accent strip
+            Container(height: 3, color: accent ?? const Color(0xFFE5E7EB)),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    number,
+                    style: TextStyle(
+                      fontSize: 26,
+                      color: numberColor ?? const Color(0xFF111827),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label.replaceAll('\n', ' '),
+                    style:
+                        const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

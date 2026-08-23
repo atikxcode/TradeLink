@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../../core/config/api_config.dart';
 import '../models/supplier_result.dart';
 
 /// One parsed line of a multi-item bulk order (e.g. "oil=10").
@@ -55,7 +56,7 @@ class AssistantMessage {
 /// Sends the user's message to the backend `/assistant/chat` endpoint which
 /// performs intent classification, NLU parsing, and PostgreSQL search.
 class AssistantService {
-  static String get _baseUrl => 'https://tradelink-2.onrender.com/api/v1';
+  static String get _baseUrl => ApiConfig.baseUrl;
 
   static Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();

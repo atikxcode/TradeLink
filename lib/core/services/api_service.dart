@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../core/config/api_config.dart';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -10,9 +11,9 @@ class ApiService {
     // Web always runs on the same machine, so localhost works.
     // Android emulator needs 10.0.2.2.
     if (kIsWeb) {
-      return 'https://tradelink-2.onrender.com/api/v1';
+      return ApiConfig.baseUrl;
     }
-    return 'https://tradelink-2.onrender.com/api/v1';
+    return ApiConfig.baseUrl;
   }
 
   static Future<Map<String, String>> _headers() async {
