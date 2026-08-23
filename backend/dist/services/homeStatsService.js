@@ -33,6 +33,9 @@ export async function getHomeStats(userId) {
     const supplier = supplierRows[0];
     const sLat = supplier?.latitude ?? null;
     const sLng = supplier?.longitude ?? null;
+    // Defensive: supply_radius may contain junk ('null', '', text)
+    const radiusNum = parseFloat(String(supplier?.supply_radius ?? ''));
+    const maxRadius = Number.isFinite(radiusNum) && radiusNum > 0 ? radiusNum : 10;
     // 2. Open demands within the supplier's radius (default 10 km).
     //    Haversine distance, clamped ACOS to avoid float domain errors.
     const demandRowsResult = await db.query(`SELECT d.id, d.shop_owner_id, d.product_name, d.category, d.quantity,
@@ -59,9 +62,9 @@ export async function getHomeStats(userId) {
            * COS(RADIANS(d.longitude) - RADIANS($2))
            + SIN(RADIANS($1)) * SIN(RADIANS(d.latitude))
          )))
-       ) <= COALESCE($3, 10)
+       ) <= COALESCE($3::float8, 10)
      ORDER BY d.created_at DESC
-     LIMIT 50`, [sLat, sLng, supplier?.supply_radius ?? null]);
+     LIMIT 50`, [sLat, sLng, maxRadius]);
     const demandRows = demandRowsResult.rows;
     const { rows: pendingRows } = await db.query(`SELECT count(*)::text AS count
      FROM orders

@@ -131,8 +131,11 @@ export async function updateProfile(
     values.push(payload.minOrderValue);
   }
   if (payload.supplyRadius !== undefined) {
+    // Store NULL for empty/non-numeric input — never the string "null"
+    const raw = (payload.supplyRadius ?? '').toString().trim();
+    const parsed = parseFloat(raw);
     fields.push(`supply_radius = $${idx++}`);
-    values.push(payload.supplyRadius);
+    values.push(raw !== '' && Number.isFinite(parsed) ? raw : null);
   }
   if (payload.address !== undefined) {
     fields.push(`address = $${idx++}`);
