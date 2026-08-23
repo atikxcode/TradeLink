@@ -32,7 +32,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         return;
       }
 
-      final uri = Uri.parse('http://192.168.1.101:8081/api/v1/orders/shop-owner');
+      final uri = Uri.parse('https://tradelink-2.onrender.com/api/v1/orders/shop-owner');
       final response = await http.get(
         uri,
         headers: {
