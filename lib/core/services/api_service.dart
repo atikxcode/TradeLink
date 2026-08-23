@@ -10,9 +10,9 @@ class ApiService {
     // Web always runs on the same machine, so localhost works.
     // Android emulator needs 10.0.2.2.
     if (kIsWeb) {
-      return 'http://192.168.1.101:8081/api/v1';
+      return 'https://tradelink-2.onrender.com/api/v1';
     }
-    return 'http://192.168.1.101:8081/api/v1';
+    return 'https://tradelink-2.onrender.com/api/v1';
   }
 
   static Future<Map<String, String>> _headers() async {

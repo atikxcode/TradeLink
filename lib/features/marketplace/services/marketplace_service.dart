@@ -7,9 +7,9 @@ import '../models/marketplace_product_model.dart';
 class MarketplaceService {
   static String get _baseUrl {
     if (kIsWeb) {
-      return 'http://192.168.1.101:8081/api/v1';
+      return 'https://tradelink-2.onrender.com/api/v1';
     }
-    return 'http://192.168.1.101:8081/api/v1';
+    return 'https://tradelink-2.onrender.com/api/v1';
   }
 
   static Future<Map<String, String>> _headers() async {
