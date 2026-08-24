@@ -151,14 +151,31 @@ class _StockScreenState extends State<StockScreen> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Text(
-                        'My Stock',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'My Stock',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _stocks.isEmpty
+                                ? 'No items yet'
+                                : '${_stocks.length} ${_stocks.length == 1 ? 'item' : 'items'} listed',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textHint,
+                            ),
+                          ),
+                        ],
                       ),
                       if (widget.showAddButton)
                         ElevatedButton.icon(
@@ -172,14 +189,15 @@ class _StockScreenState extends State<StockScreen> {
                             _fetchStocks();
                           },
                           icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('Add stock'),
+                          label: const Text('Add stock',
+                              style: TextStyle(fontWeight: FontWeight.w700)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primaryTeal,
                             foregroundColor: Colors.white,
                             elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         ),
@@ -188,26 +206,44 @@ class _StockScreenState extends State<StockScreen> {
                   const SizedBox(height: 16),
                   if (_stocks.isEmpty)
                     Container(
-                      padding: const EdgeInsets.all(32),
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.inputBorder),
                       ),
-                      child: const Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.inventory_2_outlined,
-                            size: 48,
-                            color: Color(0xFF94A3B8),
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTealLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 34,
+                              color: Color(0xFF94A3B8),
+                            ),
                           ),
-                          SizedBox(height: 12),
-                          Text(
-                            "No stock listed yet. Tap '+ Add stock' to publish your first item.",
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No stock listed yet',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            "Tap '+ Add stock' to publish your first item.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
                               color: Color(0xFF94A3B8),
                               height: 1.5,
                             ),
@@ -294,99 +330,152 @@ class _StockItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTealLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(_icon, color: AppColors.primaryTeal, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _categoryBgColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  category,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _categoryTextColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '\u09F3$price / $unit',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F766E),
-                ),
-              ),
-              Text(
-                'Quantity: $quantity $unit',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              GestureDetector(
-                onTap: onEdit,
-                child: const Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: Color(0xFF0F766E),
-                ),
-              ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: onDelete,
-                child: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 18,
-                  color: Color(0xFFDC2626),
-                ),
-              ),
-            ],
+        border: Border.all(color: const Color(0xFFEDF1F5)),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTealLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(_icon, color: AppColors.primaryTeal, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _categoryBgColor,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    category.isEmpty ? 'Other' : category,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _categoryTextColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '\u09F3$price / $unit',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Qty: $quantity $unit',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _actionPill(
+                  label: 'Edit',
+                  icon: Icons.edit_outlined,
+                  foreground: const Color(0xFF0F766E),
+                  background: const Color(0xFFE6F4F1),
+                  onTap: onEdit,
+                ),
+                const SizedBox(width: 8),
+                _actionPill(
+                  label: 'Delete',
+                  icon: Icons.delete_outline_rounded,
+                  foreground: const Color(0xFFDC2626),
+                  background: const Color(0xFFFEE2E2),
+                  onTap: onDelete,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionPill({
+    required String label,
+    required IconData icon,
+    required Color foreground,
+    required Color background,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: foreground),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: foreground,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -477,13 +566,44 @@ class _EditStockSheetState extends State<_EditStockSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Edit Stock Item',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.inputBorder,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Edit Stock Item',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTealLight,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _selectedCategory,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             _buildLabel('Product Name'),
