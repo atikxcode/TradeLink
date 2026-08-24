@@ -1,9 +1,7 @@
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -32,21 +30,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
         return;
       }
 
-      final uri = Uri.parse('https://tradelink-2.onrender.com/api/v1/orders/shop-owner');
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-User-Id': '$userId::shop_owner',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final data = await ApiService.get('/orders/shop-owner');
 
       if (mounted) {
-        final body = jsonDecode(response.body);
-        if (response.statusCode == 200 && body['success'] == true) {
+        if (data != null) {
           setState(() {
-            _orders = List<Map<String, dynamic>>.from(body['data'] ?? []);
+            _orders = List<Map<String, dynamic>>.from(data ?? []);
             _isLoading = false;
           });
         } else {

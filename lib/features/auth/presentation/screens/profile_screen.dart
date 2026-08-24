@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import 'profile_settings_screen.dart';
 import 'orders_screen.dart';
 import 'settings_screen.dart';
+import '../../../supplier/presentation/screens/manage_delivery_men_screen.dart';
 
 /// Modern profile screen that adapts to Shop Owner vs Supplier.
 ///
@@ -32,6 +33,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _businessName = '';
   String _phone = '';
   String _address = '';
+  String _category = '';
+  String _tradeLicense = '';
+  String _minOrderValue = '';
+  String _supplyRadius = '';
 
   @override
   void initState() {
@@ -56,6 +61,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _businessName = s('businessName');
         _phone = s('phoneNumber');
         _address = s('address');
+        _category = s('category');
+        _tradeLicense = s('tradeLicense');
+        _minOrderValue = s('minOrderValue');
+        _supplyRadius = s('supplyRadius');
         _isLoading = false;
       });
     } else if (mounted) {
@@ -81,6 +90,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _businessName = pretty(prefs.getString('user_business'), 'My Shop');
       _phone = prefs.getString('user_phone') ?? '';
       _address = prefs.getString('user_address') ?? '';
+      _category = prefs.getString('user_category') ?? '';
+      _tradeLicense = prefs.getString('user_trade_license') ?? '';
+      _minOrderValue = prefs.getString('user_min_order') ?? '';
+      _supplyRadius = prefs.getString('user_supply_radius') ?? '';
       _isLoading = false;
     });
   }
@@ -321,7 +334,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (!_isSupplier)
             _tile(Icons.receipt_long_outlined, 'Order History',
                 onTap: () => _push(const OrdersScreen()))
-          else
+          else ...[
+            _tile(Icons.delivery_dining, 'Manage Delivery Men',
+                subtitle: 'Add or manage delivery staff',
+                onTap: () => _push(const ManageDeliveryMenScreen())),
+            _divider(),
             _tile(Icons.account_balance_wallet_outlined,
                 'Manage Withdrawals / Earnings',
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(
@@ -329,6 +346,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         content:
                             Text('Withdrawals coming soon — earnings ledger in progress.'),
                         behavior: SnackBarBehavior.floating))),
+          ],
           _divider(),
           _tile(Icons.settings_outlined, 'Account Settings & Security',
               onTap: () => _push(const SettingsScreen())),
@@ -400,6 +418,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'phoneNumber': _phone,
         'address': _address,
         'role': _actualRole,
+        'category': _category,
+        'tradeLicense': _tradeLicense,
+        'minOrderValue': _minOrderValue,
+        'supplyRadius': _supplyRadius,
       };
 
   Future<void> _openSettings() async {

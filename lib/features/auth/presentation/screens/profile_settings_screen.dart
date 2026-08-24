@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../core/constants/app_categories.dart';
 import '../../../../core/services/api_service.dart';
 
@@ -26,6 +29,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   late final TextEditingController _minOrderCtrl;
   late final TextEditingController _radiusCtrl;
   late String _category;
+  double? _latitude;
+  double? _longitude;
   bool _saving = false;
 
   @override
@@ -43,6 +48,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         TextEditingController(text: s('minOrderValue').replaceAll(RegExp(r'\.0+$'), ''));
     _radiusCtrl = TextEditingController(text: s('supplyRadius'));
     _category = s('category').isEmpty ? AppCategories.grocery : s('category');
+    final lat = d['latitude'];
+    final lng = d['longitude'];
+    _latitude = lat != null ? (lat as num).toDouble() : null;
+    _longitude = lng != null ? (lng as num).toDouble() : null;
   }
 
   @override
@@ -100,12 +109,32 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       'phoneNumber': _phoneCtrl.text.trim(),
       'address': _addressCtrl.text.trim(),
     };
+    if (_latitude != null && _longitude != null) {
+      body['latitude'] = _latitude;
+      body['longitude'] = _longitude;
+    }
     if (_isSupplier) {
       body['tradeLicense'] = _licenseCtrl.text.trim();
       body['minOrderValue'] =
           double.tryParse(_minOrderCtrl.text.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
       final r = double.tryParse(_radiusCtrl.text.trim());
       body['supplyRadius'] = r?.toString();
+    }
+
+    final hasLocation = _latitude != null;
+    if (!hasLocation) {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+          final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+          body['latitude'] = position.latitude;
+          body['longitude'] = position.longitude;
+        }
+      }
     }
 
     final data = await ApiService.patch('/profile', body: body);
@@ -120,6 +149,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       await prefs.setString('user_phone', data['phoneNumber']?.toString() ?? '');
       await prefs.setString('user_address', data['address']?.toString() ?? '');
       await prefs.setString('user_category', _category);
+      if (_isSupplier) {
+        await prefs.setString('user_trade_license', data['tradeLicense']?.toString() ?? '');
+        await prefs.setString('user_min_order', data['minOrderValue']?.toString() ?? '');
+        await prefs.setString('user_supply_radius', data['supplyRadius']?.toString() ?? '');
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Profile updated successfully'),
@@ -189,6 +223,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               maxLines: 2,
               decoration: _dec('Shop location / delivery address'),
             ),
+            const SizedBox(height: 16),
+            _label('Map location'),
+            _buildMapCard(),
             if (_isSupplier) ...[
               const SizedBox(height: 16),
               _label('Trade license'),
@@ -252,4 +289,106 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       ),
     );
   }
+
+  Widget _buildMapCard() {
+    return GestureDetector(
+      onTap: () async {
+        if (_latitude == null) {
+          bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+          if (!serviceEnabled) return;
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+          if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+            final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+            setState(() {
+              _latitude = position.latitude;
+              _longitude = position.longitude;
+            });
+          }
+        }
+      },
+      child: Container(
+        height: 140,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
+          color: const Color(0xFFEEF8F6),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: _latitude != null && _longitude != null
+            ? FlutterMap(
+                options: MapOptions(
+                  initialCenter: LatLng(_latitude!, _longitude!),
+                  initialZoom: 15.0,
+                  onTap: (tapPosition, point) {
+                    setState(() {
+                      _latitude = point.latitude;
+                      _longitude = point.longitude;
+                    });
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.tradelink',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(_latitude!, _longitude!),
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_on, size: 36, color: _brand),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+                  const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_on_rounded, size: 36, color: _brand),
+                      SizedBox(height: 8),
+                      Text(
+                        'Tap to get current location',
+                        style: TextStyle(
+                          color: _brand,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
 }
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF0F766E).withValues(alpha: 0.06)
+      ..strokeWidth = 1;
+    const step = 18.0;
+    for (double x = 0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+

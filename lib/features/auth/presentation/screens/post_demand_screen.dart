@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../core/config/supabase_config.dart';
 
 const Color _pdPrimaryTeal = Color(0xFF0F766E);
@@ -497,6 +498,42 @@ class _PostDemandScreenState extends State<PostDemandScreen> {
 
                       if (userId == null) {
                         throw Exception('Please register or log in first.');
+                      }
+
+                      // Ensure location is set
+                      if (_latitude == null || _longitude == null) {
+                        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                        if (!serviceEnabled) {
+                          throw Exception('Location services are disabled. Please enable them to post a demand.');
+                        }
+
+                        LocationPermission permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied) {
+                          permission = await Geolocator.requestPermission();
+                          if (permission == LocationPermission.denied) {
+                            throw Exception('Location permissions are denied.');
+                          }
+                        }
+                        
+                        if (permission == LocationPermission.deniedForever) {
+                          throw Exception('Location permissions are permanently denied.');
+                        } 
+
+                        final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+                        
+                        _latitude = position.latitude;
+                        _longitude = position.longitude;
+
+                        // Auto-save location to user profile
+                        await SupabaseConfig.client
+                            .from(SupabaseConfig.tableUsers)
+                            .update({
+                              'latitude': _latitude,
+                              'longitude': _longitude,
+                            })
+                            .eq('id', userId);
+
+                        if (mounted) setState(() {});
                       }
 
                       await SupabaseConfig.client

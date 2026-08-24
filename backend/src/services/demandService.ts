@@ -206,6 +206,32 @@ export async function declineDemand(
   return { demandId, message: 'Demand declined' };
 }
 
+/** Shop owner cancels their own demand. */
+export async function cancelDemand(
+  demandId: string,
+  shopOwnerId: string,
+): Promise<{ demandId: string; message: string }> {
+  const demand = await db.query<{ id: string; status: string; shop_owner_id: string }>(
+    `SELECT id, status, shop_owner_id FROM demands WHERE id = $1`,
+    [demandId],
+  );
+
+  const row = demand.rows[0];
+  if (!row) throw httpError('Demand not found', 404);
+  if (row.shop_owner_id !== shopOwnerId) {
+    throw httpError('You can only cancel your own demands', 403);
+  }
+  if (row.status !== 'open' && row.status !== 'pending') {
+    throw httpError(`Demand already ${row.status}`, 409);
+  }
+
+  await db.query(`UPDATE demands SET status = 'cancelled' WHERE id = $1`, [
+    demandId,
+  ]);
+
+  return { demandId, message: 'Demand cancelled successfully' };
+}
+
 /**
  * Supplier (deliveryman) confirms the order for delivery:
  *   1. lock + validate the order belongs to this supplier and is 'accepted'

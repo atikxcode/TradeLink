@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
+import 'delivery_login_screen.dart';
 import 'register_screen.dart';
 import 'shop_owner_home_screen.dart';
 import 'stockholder_home_screen.dart';
@@ -442,6 +443,30 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 24),
+                          // Delivery Man Login Link
+                          Align(
+                            alignment: Alignment.center,
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const DeliveryLoginScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Login as Delivery Man',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange, // Distinct color
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
