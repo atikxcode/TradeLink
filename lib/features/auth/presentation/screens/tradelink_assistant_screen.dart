@@ -8,6 +8,8 @@ import 'shop_owner_home_screen.dart';
 import 'models/supplier_result.dart';
 import 'services/assistant_service.dart';
 import 'services/agent_engine.dart';
+import 'services/deepseek_planner.dart';
+import '../../../../core/config/deepseek_config.dart';
 import 'orders_screen.dart';
 import 'supplier_comparison_screen.dart';
 
@@ -68,8 +70,16 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
     });
     _scrollToBottom();
 
-    // Agentic path: bulk / natural-language order prompts run the tool loop
-    final orderIntent = AgentEngine.parseOrderIntent(text);
+    // ── Intent resolution: LLM first, regex fallback ──
+    AgentOrderIntent? orderIntent;
+
+    if (DeepSeekConfig.isConfigured) {
+      // LLM handles ANY phrasing: typos, filler, no keywords needed
+      orderIntent = await DeepSeekPlanner.extractIntent(text);
+    } else {
+      orderIntent = AgentEngine.parseOrderIntent(text);
+    }
+
     if (orderIntent != null) {
       try {
         await _runAgentOrder(orderIntent.items, sortBy: orderIntent.sortBy);
