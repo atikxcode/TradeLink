@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { db, type DbClient } from '../db/pool.js';
 import type { OrderItem, OrderStatus } from '../types/index.js';
+import { sendSms } from './smsService.js';
 
 function httpError(message: string, status: number): Error & { status: number } {
   const error = new Error(message) as Error & { status: number };
@@ -222,7 +223,19 @@ export async function markOutOfDelivery(
       ],
     );
 
+    // Fetch user phone number for SMS
+    const userQuery = await client.query(
+      `SELECT phone_number, business_name FROM users WHERE id = $1`,
+      [order.shop_owner_id],
+    );
+
     await client.query('COMMIT');
+    
+    // Send SMS asynchronously after commit
+    if (userQuery.rows.length > 0) {
+      const phone = userQuery.rows[0].phone_number;
+      sendSms(phone, `TradeLink: Your delivery OTP is ${otp} for order ${order.product_name}. Share this 6-digit code with the delivery person.`);
+    }
 
     const { rows: updated } = await client.query(
       `SELECT * FROM orders WHERE id = $1`, [orderId],

@@ -6,6 +6,7 @@ import type {
   NotificationItem,
   OrderItem,
 } from '../types/index.js';
+import { sendSms } from './smsService.js';
 
 export interface OrderRow {
   id: string;
@@ -259,6 +260,7 @@ export async function confirmDelivery(
       [orderId],
     );
 
+    // Notify shop owner with OTP
     await client.query(
       `INSERT INTO notifications (user_id, title, subtitle, type)
        VALUES ($1, $2, $3, 'delivery_otp')`,
@@ -269,7 +271,19 @@ export async function confirmDelivery(
       ],
     );
 
+    // Fetch user phone number for SMS
+    const userQuery = await client.query(
+      `SELECT phone_number, business_name FROM users WHERE id = $1`,
+      [orderRow.shop_owner_id],
+    );
+
     await client.query('COMMIT');
+
+    // Send SMS asynchronously after commit
+    if (userQuery.rows.length > 0) {
+      const phone = userQuery.rows[0].phone_number;
+      sendSms(phone, `TradeLink: Your delivery OTP is ${otp} for order ${orderRow.product_name}. Share this 6-digit code with the delivery person.`);
+    }
 
     return {
       orderId,
