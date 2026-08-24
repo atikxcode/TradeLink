@@ -7,7 +7,6 @@ import 'login_screen.dart';
 import 'profile_settings_screen.dart';
 import 'orders_screen.dart';
 import 'settings_screen.dart';
-import '../../../supplier/presentation/screens/manage_delivery_men_screen.dart';
 
 /// Modern profile screen that adapts to Shop Owner vs Supplier.
 ///
@@ -335,10 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _tile(Icons.receipt_long_outlined, 'Order History',
                 onTap: () => _push(const OrdersScreen()))
           else ...[
-            _tile(Icons.delivery_dining, 'Manage Delivery Men',
-                subtitle: 'Add or manage delivery staff',
-                onTap: () => _push(const ManageDeliveryMenScreen())),
-            _divider(),
+
             _tile(Icons.account_balance_wallet_outlined,
                 'Manage Withdrawals / Earnings',
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(

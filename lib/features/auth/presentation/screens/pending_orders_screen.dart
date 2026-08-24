@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
+import 'track_rider_screen.dart';
+import '../../../../core/config/api_config.dart';
 
 class PendingOrdersScreen extends StatefulWidget {
   final bool embedded;
@@ -123,85 +125,41 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     }
   }
 
-  Future<void> _assignDeliveryMan(String orderId) async {
-    // 1. Fetch delivery men
+
+  Future<void> _requestRider(String orderId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    final role = prefs.getString('user_role');
+
+    if (userId == null || role == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User not logged in')));
+      return;
+    }
+
     setState(() => _isActionInProgress = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('user_id') ?? '';
-      final role = prefs.getString('user_role') ?? 'supplier';
-      
-      final res = await http.get(
-        Uri.parse('https://tradelink-2.onrender.com/api/v1/suppliers/delivery-men'),
-        headers: {'X-User-Id': '$userId::$role'},
-      );
-      final body = jsonDecode(res.body);
-      
-      setState(() => _isActionInProgress = false);
-      
-      if (res.statusCode != 200 || body['success'] != true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load delivery men')));
-        return;
-      }
-      
-      final List deliveryMen = body['data'] ?? [];
-      if (deliveryMen.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No delivery men available. Add one in Profile.')));
-        return;
-      }
-      
-      // 2. Show dialog to select one
-      final selectedId = await showDialog<String>(
-        context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            title: const Text('Assign Delivery Man'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: deliveryMen.length,
-                itemBuilder: (context, index) {
-                  final dm = deliveryMen[index];
-                  return ListTile(
-                    leading: const Icon(Icons.delivery_dining),
-                    title: Text(dm['full_name'] ?? 'Unknown'),
-                    subtitle: Text(dm['phone_number'] ?? ''),
-                    onTap: () => Navigator.pop(ctx, dm['id']),
-                  );
-                },
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            ],
-          );
-        },
-      );
-      
-      if (selectedId == null) return;
-      
-      // 3. Assign via API
-      setState(() => _isActionInProgress = true);
-      
       final patchRes = await http.patch(
-        Uri.parse('https://tradelink-2.onrender.com/api/v1/orders/$orderId/assign-delivery'),
+        Uri.parse('${ApiConfig.baseUrl}/orders/$orderId/request-rider'),
         headers: {
           'Content-Type': 'application/json',
           'X-User-Id': '$userId::$role',
         },
-        body: jsonEncode({'deliveryManId': selectedId}),
       );
-      
+
       setState(() => _isActionInProgress = false);
       final patchBody = jsonDecode(patchRes.body);
       if (patchRes.statusCode == 200 && patchBody['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery man assigned successfully!'), backgroundColor: Color(0xFF10B981)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Looking for nearby riders...'),
+          backgroundColor: Color(0xFF10B981),
+        ));
         _fetchPendingOrders();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(patchBody['error'] ?? 'Failed to assign'), backgroundColor: const Color(0xFFEF4444)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(patchBody['error'] ?? 'Failed to request rider'),
+          backgroundColor: const Color(0xFFEF4444),
+        ));
       }
-      
     } catch (e) {
       setState(() => _isActionInProgress = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error')));
@@ -283,7 +241,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
       final role = prefs.getString('user_role') ?? 'supplier';
-      final uri = Uri.parse('https://tradelink-2.onrender.com/api/v1$path');
+      final uri = Uri.parse('${ApiConfig.baseUrl}$path');
 
       final response = await http.post(
         uri,
@@ -310,7 +268,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
       final role = prefs.getString('user_role') ?? 'supplier';
-      final uri = Uri.parse('https://tradelink-2.onrender.com/api/v1$path');
+      final uri = Uri.parse('${ApiConfig.baseUrl}$path');
 
       final response = await http.post(
         uri,
@@ -490,8 +448,20 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
                             onAccept: () => _acceptOrder(order['orderId'] ?? ''),
                             onDecline: () => _declineOrder(order['orderId'] ?? ''),
                             onOutForDelivery: () => _markOutOfDelivery(order['orderId'] ?? ''),
-                            onVerifyDelivery: () => _verifyDelivery(order['orderId'] ?? ''),
-                            onAssignDelivery: () => _assignDeliveryMan(order['orderId'] ?? ''),
+                            onAssignDelivery: () => _requestRider(order['orderId'] ?? ''),
+                            onTrackRider: order['delivery_man_id'] != null 
+                              ? () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => TrackRiderScreen(
+                                        deliveryManId: order['delivery_man_id'],
+                                        orderId: order['orderId'] ?? '',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              : null,
                           );
                         },
                       ),
@@ -609,8 +579,8 @@ class _SupplierOrderCard extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onDecline;
   final VoidCallback onOutForDelivery;
-  final VoidCallback onVerifyDelivery;
-  final VoidCallback? onAssignDelivery;
+  final VoidCallback? onAssignDelivery; // "Request Rider"
+  final VoidCallback? onTrackRider;
 
   const _SupplierOrderCard({
     required this.orderId,
@@ -628,8 +598,8 @@ class _SupplierOrderCard extends StatelessWidget {
     required this.onAccept,
     required this.onDecline,
     required this.onOutForDelivery,
-    required this.onVerifyDelivery,
     this.onAssignDelivery,
+    this.onTrackRider,
   });
 
   Color get _statusColor {
@@ -644,6 +614,8 @@ class _SupplierOrderCard extends StatelessWidget {
         return const Color(0xFF10B981);
       case 'cancelled':
         return const Color(0xFFEF4444);
+      case 'searching_for_rider':
+        return const Color(0xFFD97706);
       default:
         return const Color(0xFF6B7280);
     }
@@ -661,6 +633,8 @@ class _SupplierOrderCard extends StatelessWidget {
         return 'Delivered';
       case 'cancelled':
         return 'Cancelled';
+      case 'searching_for_rider':
+        return 'Searching Rider';
       default:
         return 'Pending';
     }
@@ -678,6 +652,24 @@ class _SupplierOrderCard extends StatelessWidget {
     } catch (_) {
       return isoTime;
     }
+  }
+
+  Widget _buildActionButton({required String label, required IconData icon, required Color color, required Color textColor, VoidCallback? onPressed}) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: textColor,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
+    );
   }
 
   @override
@@ -792,13 +784,31 @@ class _SupplierOrderCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onTrackRider != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isActionInProgress ? null : onTrackRider,
+                    icon: const Icon(Icons.location_on, size: 18),
+                    label: const Text('Track Rider'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo.shade600,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: isActionInProgress ? null : onAssignDelivery,
-                  icon: const Icon(Icons.delivery_dining_outlined, size: 18),
-                  label: const Text('Assign Delivery Man'),
+                  icon: const Icon(Icons.electric_bike_rounded, size: 18),
+                  label: const Text('Request Rider'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange.shade700,
                     foregroundColor: Colors.white,
@@ -808,40 +818,47 @@ class _SupplierOrderCard extends StatelessWidget {
                   ),
                 ),
               ),
-            ] else if (orderStatus == 'out_for_delivery') ...[
+            ] else if (orderStatus == 'searching_for_rider') ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Column(
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Ask the shop owner for the delivery OTP.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: isActionInProgress ? null : onVerifyDelivery,
-                        icon: const Icon(Icons.verified_outlined, size: 18),
-                        label: const Text('Enter OTP & Confirm'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F5C4F),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706))),
+                    SizedBox(width: 8),
+                    Text(
+                      'Looking for nearby riders...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFD97706),
                       ),
                     ),
                   ],
                 ),
               ),
+            ] else if (orderStatus == 'out_for_delivery') ...[
+              if (onTrackRider != null)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isActionInProgress ? null : onTrackRider,
+                    icon: const Icon(Icons.location_on, size: 18),
+                    label: const Text('Track Rider'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo.shade600,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
             ],
           ],
         ),

@@ -63,11 +63,14 @@ import {
 } from '../controllers/negotiationController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
 import {
-  createDeliveryManHandler,
-  listDeliveryMenHandler,
-  assignDeliveryManHandler,
+  acceptRequestHandler,
   getDeliveryManOrdersHandler,
+  getNearbyRequestsHandler,
   markOrderDeliveredHandler,
+  registerDeliveryManHandler,
+  requestRiderHandler,
+  sendDeliveryOtpHandler,
+  notifyArrivalHandler,
 } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
@@ -149,13 +152,15 @@ router.post('/orders/:id/accept', requireSupplier, acceptOrderHandler);
 router.post('/orders/:id/decline', requireSupplier, declineOrderHandler);
 router.post('/orders/:id/out-for-delivery', requireSupplier, markOutOfDeliveryHandler);
 router.post('/orders/:id/verify-delivery', requireSupplier, verifyDeliveryHandler);
-router.patch('/orders/:id/assign-delivery', requireSupplier, assignDeliveryManHandler);
-
 // ---- Delivery Men endpoints ----
-router.post('/suppliers/delivery-men', requireSupplier, createDeliveryManHandler);
-router.get('/suppliers/delivery-men', requireSupplier, listDeliveryMenHandler);
+router.post('/delivery/register', registerDeliveryManHandler); // Public registration
+router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
+router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
+router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
 router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man
 router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
+router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
+router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man
 
 // ---- Notifications ----
 router.get('/notifications', getNotificationsHandler);

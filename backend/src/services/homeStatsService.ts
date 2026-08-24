@@ -110,7 +110,7 @@ export async function getHomeStats(userId: string): Promise<HomeStatsResponse> {
     `SELECT count(*)::text AS count
      FROM orders
      WHERE supplier_id = $1
-       AND status IN ('pending', 'accepted', 'out_for_delivery', 'in_transit')`,
+       AND status IN ('pending', 'accepted', 'searching_for_rider', 'out_for_delivery', 'in_transit')`,
     [userId],
   );
 

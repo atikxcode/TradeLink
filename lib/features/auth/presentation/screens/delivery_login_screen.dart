@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../delivery/presentation/screens/delivery_man_home_screen.dart';
-import 'delivery_force_reset_screen.dart';
+import '../../../../features/delivery/presentation/screens/delivery_man_register_screen.dart';
 
 class DeliveryLoginScreen extends StatefulWidget {
   const DeliveryLoginScreen({Key? key}) : super(key: key);
@@ -83,17 +83,6 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
       }
 
       final user = users[0];
-      
-      if (user['force_password_reset'] == true) {
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => DeliveryForceResetScreen(userId: user['id'], userPhone: phone),
-          ),
-        );
-        return;
-      }
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_id', user['id']?.toString() ?? '');
       await prefs.setString('user_name', user['full_name']?.toString() ?? '');
@@ -274,6 +263,37 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                             )
                           : const Text('Log in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Register Link
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Don't have an account?",
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const DeliveryManRegisterScreen()),
+                          );
+                        },
+                        child: const Text(
+                          'Register Now',
+                          style: TextStyle(
+                            color: AppColors.primaryTeal,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

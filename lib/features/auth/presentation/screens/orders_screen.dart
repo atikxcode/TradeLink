@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 
@@ -285,6 +286,13 @@ class _ShopOwnerOrderCard extends StatelessWidget {
                           color: Color(0xFFD97706),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    QrImageView(
+                      data: deliveryOtp!,
+                      version: QrVersions.auto,
+                      size: 150.0,
+                      backgroundColor: Colors.white,
                     ),
                     const SizedBox(height: 8),
                     const Text(
