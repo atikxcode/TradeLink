@@ -59,7 +59,7 @@ export interface MarketplaceSearchParams {
   shopLng: number | null;
   category?: string;
   maxDistance?: number;
-  sortBy?: 'distance' | 'price' | 'rating' | 'top_rated' | 'Top Rated';
+  sortBy?: string;
   limit?: number;
   offset?: number;
 }

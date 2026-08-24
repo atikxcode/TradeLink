@@ -68,7 +68,13 @@ export function parseMultiItemOrder(message) {
     const entries = [];
     for (const part of message.split(',')) {
         const [rawName, rawQty] = part.split('=');
-        const name = (rawName ?? '').trim().toLowerCase();
+        // Strip action verbs so "order oil=10" resolves to product "oil"
+        const name = (rawName ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/\b(order|buy|purchase|get|need|want|kino|kinbo|dorkar|lagbe|chaile|dao|deu)\b/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
         const quantity = parseFloat((rawQty ?? '').trim());
         if (!name || !Number.isFinite(quantity) || quantity <= 0)
             return null;

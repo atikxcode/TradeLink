@@ -134,7 +134,11 @@ export async function searchMarketplace(
 
   switch (sortBy) {
     case 'price':
+    case 'price_asc':
       sql += ` ORDER BY si.price_per_unit ASC`;
+      break;
+    case 'price_desc':
+      sql += ` ORDER BY si.price_per_unit DESC`;
       break;
     case 'rating':
     case 'top_rated':

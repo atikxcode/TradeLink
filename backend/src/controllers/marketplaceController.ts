@@ -31,7 +31,7 @@ export const searchMarketplaceHandler = asyncHandler(
       shopLng: shopLng ?? null,
       category: category ? String(category) : undefined,
       maxDistance: Number(maxDistance),
-      sortBy: String(sortBy) as 'distance' | 'price' | 'rating' | 'top_rated' | 'Top Rated',
+      sortBy: String(sortBy),
       limit: Number(limit),
       offset: Number(offset),
     });

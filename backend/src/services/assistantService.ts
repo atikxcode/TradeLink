@@ -114,16 +114,25 @@ export interface MultiItemEntry {
  */
 export function parseMultiItemOrder(message: string): MultiItemEntry[] | null {
   if (!message.includes('=')) return null;
-  const entries: MultiItemEntry[] = [];
-  for (const part of message.split(',')) {
-    const [rawName, rawQty] = part.split('=');
-    const name = (rawName ?? '').trim().toLowerCase();
-    const quantity = parseFloat((rawQty ?? '').trim());
-    if (!name || !Number.isFinite(quantity) || quantity <= 0) return null;
-    entries.push({ name, quantity });
+    const entries: MultiItemEntry[] = [];
+    for (const part of message.split(',')) {
+      const [rawName, rawQty] = part.split('=');
+      // Strip action verbs so "order oil=10" resolves to product "oil"
+      const name = (rawName ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(
+          /\b(order|buy|purchase|get|need|want|kino|kinbo|dorkar|lagbe|chaile|dao|deu)\b/g,
+          '',
+        )
+        .replace(/\s+/g, ' ')
+        .trim();
+      const quantity = parseFloat((rawQty ?? '').trim());
+      if (!name || !Number.isFinite(quantity) || quantity <= 0) return null;
+      entries.push({ name, quantity });
+    }
+    return entries.length > 0 ? entries : null;
   }
-  return entries.length > 0 ? entries : null;
-}
 
 // ── Natural / Banglish order parsing ──────────────────────────────
 // Supports flexible word orders:
