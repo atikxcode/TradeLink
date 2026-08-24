@@ -211,17 +211,17 @@ export const assistantChatHandler = asyncHandler(
               quantity: r.quantity,
               match: r.match
                 ? {
-                    stockId: r.match.stockId,
-                    stockholderId: r.match.stockholderId,
-                    productName: r.match.productName,
-                    storeName: r.match.supplierName,
-                    price: r.match.pricePerUnit,
-                    unit: r.match.unit,
-                    quantityAvailable: r.match.quantityAvailable,
-                    distanceKm: r.match.distanceKm,
-                    rating: r.match.rating,
-                    ratingCount: r.match.ratingCount,
-                  }
+                  stockId: r.match.stockId,
+                  stockholderId: r.match.stockholderId,
+                  productName: r.match.productName,
+                  storeName: r.match.supplierName,
+                  price: r.match.pricePerUnit,
+                  unit: r.match.unit,
+                  quantityAvailable: r.match.quantityAvailable,
+                  distanceKm: r.match.distanceKm,
+                  rating: r.match.rating,
+                  ratingCount: r.match.ratingCount,
+                }
                 : null,
             })),
             estimatedTotal,

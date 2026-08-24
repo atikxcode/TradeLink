@@ -6,11 +6,11 @@ import { createStock, listStock, updateStock, deleteStock } from '../services/st
 
 export const publishStock = asyncHandler(async (req: AuthRequest, res: Response) => {
   const stockholderId = req.userId!;
-  
+
   // Handle multipart form data with optional image
   const body = req.body as Record<string, unknown>;
   const file = req.file;
-  
+
   // Build payload from form fields
   const payload: {
     masterProductId?: string;
@@ -49,7 +49,7 @@ export const publishStock = asyncHandler(async (req: AuthRequest, res: Response)
 
   // Validate with zod
   const validatedPayload = createStockSchema.parse(payload);
-  
+
   const stock = await createStock(stockholderId, validatedPayload);
   res.status(201).json({ success: true, data: stock });
 });
