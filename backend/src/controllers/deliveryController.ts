@@ -195,27 +195,13 @@ export async function markOrderDeliveredHandler(req: AuthRequest, res: Response)
         return res.status(400).json({ success: false, error: 'OTP is required' });
       }
       
-      const otpCheck = await db.query(
-        `SELECT otp_code, is_verified, expires_at FROM otps WHERE order_id = $1`,
-        [orderId]
-      );
-
-      if (otpCheck.rows.length === 0) {
+      if (!order.delivery_otp) {
         return res.status(400).json({ success: false, error: 'No OTP generated for this order' });
       }
 
-      const otpRecord = otpCheck.rows[0];
-      if (otpRecord.otp_code !== otp) {
+      if (order.delivery_otp !== otp.toString()) {
         return res.status(400).json({ success: false, error: 'Invalid OTP' });
       }
-      if (new Date() > new Date(otpRecord.expires_at)) {
-        return res.status(400).json({ success: false, error: 'OTP expired' });
-      }
-      
-      await db.query(
-        `UPDATE otps SET is_verified = true WHERE order_id = $1`,
-        [orderId]
-      );
     }
 
     await db.query(
@@ -224,13 +210,13 @@ export async function markOrderDeliveredHandler(req: AuthRequest, res: Response)
     );
 
     await db.query(
-      `INSERT INTO public.notifications (user_id, title, message, type)
+      `INSERT INTO public.notifications (user_id, title, subtitle, type)
        VALUES ($1, 'Order Delivered', 'Your delivery man has successfully delivered the order.', 'order_update')`,
       [order.supplier_id]
     );
     
     await db.query(
-      `INSERT INTO public.notifications (user_id, title, message, type)
+      `INSERT INTO public.notifications (user_id, title, subtitle, type)
        VALUES ($1, 'Order Delivered', 'Your order has been delivered successfully.', 'order_update')`,
       [order.shop_owner_id]
     );
@@ -238,6 +224,57 @@ export async function markOrderDeliveredHandler(req: AuthRequest, res: Response)
     res.status(200).json({ success: true, message: 'Order marked as delivered' });
   } catch (error) {
     console.error('Error marking order delivered:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+/**
+ * Shop Owner confirms delivery (e.g. by scanning the Delivery Man's QR code)
+ */
+export async function shopOwnerConfirmDeliveryHandler(req: AuthRequest, res: Response) {
+  try {
+    const shopOwnerId = req.userId;
+    const { id: orderId } = req.params;
+
+    const orderCheck = await db.query(
+      `SELECT id, supplier_id, delivery_man_id, status FROM public.orders WHERE id = $1 AND shop_owner_id = $2`,
+      [orderId, shopOwnerId]
+    );
+
+    if (orderCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Order not found or you are not the owner' });
+    }
+
+    const order = orderCheck.rows[0];
+
+    if (order.status === 'delivered') {
+      return res.status(400).json({ success: false, error: 'Order is already delivered' });
+    }
+
+    await db.query(
+      `UPDATE public.orders SET status = 'delivered' WHERE id = $1`,
+      [orderId]
+    );
+
+    // Notify Supplier
+    await db.query(
+      `INSERT INTO public.notifications (user_id, title, subtitle, type)
+       VALUES ($1, 'Order Delivered', 'Your delivery man has successfully delivered the order (confirmed by shop owner).', 'order_update')`,
+      [order.supplier_id]
+    );
+    
+    // Notify Delivery Man
+    if (order.delivery_man_id) {
+      await db.query(
+        `INSERT INTO public.notifications (user_id, title, subtitle, type)
+         VALUES ($1, 'Delivery Confirmed', 'The shop owner has confirmed the delivery.', 'order_update')`,
+        [order.delivery_man_id]
+      );
+    }
+
+    res.status(200).json({ success: true, message: 'Delivery confirmed successfully' });
+  } catch (error) {
+    console.error('Error confirming delivery by shop owner:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }

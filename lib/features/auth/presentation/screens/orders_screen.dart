@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import '../../../delivery/presentation/screens/qr_scanner_screen.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 
@@ -53,6 +53,52 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
+  Future<void> _handleScanQr(String orderId) async {
+    final scannedOrderId = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
+    );
+    
+    if (scannedOrderId != null && scannedOrderId.isNotEmpty) {
+      if (scannedOrderId != orderId) {
+         if (!mounted) return;
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+           content: Text('Scanned QR code does not match this order.'),
+           backgroundColor: AppColors.cancelled,
+         ));
+         return;
+      }
+      
+      setState(() => _isLoading = true);
+      try {
+        final res = await ApiService.post('/orders/$orderId/confirm-delivery', body: {});
+        if (mounted) {
+          if (res != null) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Delivery confirmed successfully!'),
+              backgroundColor: AppColors.primaryTeal,
+            ));
+            _fetchOrders();
+          } else {
+            setState(() => _isLoading = false);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Failed to confirm delivery.'),
+              backgroundColor: AppColors.cancelled,
+            ));
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.cancelled,
+          ));
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -97,6 +143,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           deliveryOtp: order['deliveryOtp'],
                           deliveryAddress: order['deliveryAddress'],
                           orderTime: order['orderTime'] ?? '',
+                          onScanQr: () => _handleScanQr(order['orderId'] ?? ''),
                         )),
                 ],
               ),
@@ -116,6 +163,7 @@ class _ShopOwnerOrderCard extends StatelessWidget {
   final String? deliveryOtp;
   final String? deliveryAddress;
   final String orderTime;
+  final VoidCallback? onScanQr;
 
   const _ShopOwnerOrderCard({
     required this.orderId,
@@ -128,6 +176,7 @@ class _ShopOwnerOrderCard extends StatelessWidget {
     this.deliveryOtp,
     this.deliveryAddress,
     required this.orderTime,
+    this.onScanQr,
   });
 
   Color get _statusColor {
@@ -288,15 +337,19 @@ class _ShopOwnerOrderCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    QrImageView(
-                      data: deliveryOtp!,
-                      version: QrVersions.auto,
-                      size: 150.0,
-                      backgroundColor: Colors.white,
+                    ElevatedButton.icon(
+                      onPressed: onScanQr,
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('Scan Delivery QR'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Share this code with the delivery person upon arrival.',
+                      'Scan the QR code on the delivery person\'s phone to confirm delivery.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
                     ),
