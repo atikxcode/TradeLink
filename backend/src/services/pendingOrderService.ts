@@ -68,13 +68,14 @@ export async function getPendingOrders(
      FROM public.orders o
      JOIN public.users u ON o.shop_owner_id = u.id
      WHERE o.supplier_id = $1
-       AND o.status IN ('pending', 'accepted', 'out_for_delivery', 'in_transit')
+       AND o.status IN ('pending', 'accepted', 'searching_for_rider', 'out_for_delivery', 'in_transit')
      ORDER BY
        CASE o.status
          WHEN 'pending' THEN 0
          WHEN 'accepted' THEN 1
-         WHEN 'out_for_delivery' THEN 2
-         WHEN 'in_transit' THEN 3
+         WHEN 'searching_for_rider' THEN 2
+         WHEN 'out_for_delivery' THEN 3
+         WHEN 'in_transit' THEN 4
        END,
        o.created_at DESC`,
     [stockholderId],
