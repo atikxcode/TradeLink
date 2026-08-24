@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../core/config/api_config.dart';
 import '../models/supplier_result.dart';
+import 'agent_engine.dart';
 
 /// One parsed line of a multi-item bulk order (e.g. "oil=10").
 class PendingOrderItem {
@@ -39,6 +40,9 @@ class AssistantMessage {
   final bool isTyping;
   final List<SupplierResult>? suppliers;
   final List<PendingOrderItem>? pendingItems;
+  final List<AgentStep>? agentSteps;
+  final bool isAgentLive;
+  final List<PlacedOrder>? placedOrders;
   final DateTime time;
 
   AssistantMessage({
@@ -47,6 +51,9 @@ class AssistantMessage {
     this.isTyping = false,
     this.suppliers,
     this.pendingItems,
+    this.agentSteps,
+    this.isAgentLive = false,
+    this.placedOrders,
     DateTime? time,
   }) : time = time ?? DateTime.now();
 }

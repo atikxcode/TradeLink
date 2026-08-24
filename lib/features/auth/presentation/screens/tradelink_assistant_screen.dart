@@ -7,6 +7,8 @@ import '../../../../core/services/api_service.dart';
 import 'shop_owner_home_screen.dart';
 import 'models/supplier_result.dart';
 import 'services/assistant_service.dart';
+import 'services/agent_engine.dart';
+import 'orders_screen.dart';
 import 'supplier_comparison_screen.dart';
 
 const Color _asPrimaryTeal = Color(0xFF0F766E);
@@ -27,6 +29,7 @@ class TradeLinkAssistantScreen extends StatefulWidget {
 
 class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
   final AssistantService _service = AssistantService();
+  final AgentEngine _agent = AgentEngine(maxIterations: 5);
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
@@ -65,6 +68,32 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
     });
     _scrollToBottom();
 
+    // Agentic path: bulk / natural-language order prompts run the tool loop
+    final orderIntent = AgentEngine.parseOrderIntent(text);
+    if (orderIntent != null) {
+      try {
+        await _runAgentOrder(orderIntent.items, sortBy: orderIntent.sortBy);
+      } catch (e) {
+      } catch (e) {
+        // Engine already reports per-item failures; surface hard crashes too
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+            _messages.add(AssistantMessage(
+              text:
+                  'Sorry, I couldn\'t complete that order. Please try again.',
+              isUser: false,
+            ));
+          });
+        }
+      } finally {
+        // CRITICAL: always dismiss the typing indicator and re-enable input,
+        // even if the agent loop throws mid-execution.
+        if (mounted) setState(() => _isTyping = false);
+      }
+      return;
+    }
+
     final reply = await _service.generateReply(text);
 
     if (!mounted) return;
@@ -78,6 +107,47 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
         _sortedByDistance = false;
         _appliedMinRating = null;
       }
+    });
+    _scrollToBottom();
+  }
+
+  /// Streams a live agentic execution for the parsed order items.
+  Future<void> _runAgentOrder(List<AgentOrderItem> items,
+      {String sortBy = 'distance'}) async {
+    final liveIndex = _messages.length;
+    setState(() {
+      _messages.add(AssistantMessage(
+        text: 'Working on your order — ${items.length} item${items.length > 1 ? 's' : ''}…',
+        isUser: false,
+        isAgentLive: true,
+        agentSteps: const [],
+      ));
+    });
+    _scrollToBottom();
+
+    final result = await _agent.runOrderTask(items,
+        sortBy: sortBy, onStep: (step) {
+      if (!mounted) return;
+      final msg = _messages[liveIndex];
+      setState(() {
+        _messages[liveIndex] = AssistantMessage(
+          text: step.type == AgentStepType.answer ? step.title : 'Executing your order…',
+          isUser: false,
+          isAgentLive: true,
+          agentSteps: [...(msg.agentSteps ?? const []), step],
+          placedOrders: msg.placedOrders,
+        );
+      });
+      _scrollToBottom();
+    });
+
+    if (!mounted) return;
+    setState(() {
+      _messages[liveIndex] = AssistantMessage(
+        text: result.reply,
+        isUser: false,
+        placedOrders: result.placedOrders,
+      );
     });
     _scrollToBottom();
   }
@@ -315,6 +385,19 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
         return _MultiItemConfirmationCard(
           items: msg.pendingItems!,
           onConfirm: () => _confirmMultiOrder(msg.pendingItems!),
+        );
+      }
+      if (msg.isAgentLive && msg.agentSteps != null) {
+        return _AgentStepCard(steps: msg.agentSteps!, live: true);
+      }
+      if (msg.placedOrders != null && msg.placedOrders!.isNotEmpty) {
+        return _AgentResultCard(
+          text: msg.text,
+          orders: msg.placedOrders!,
+          onViewOrders: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const OrdersScreen()),
+          ),
         );
       }
       if (msg.suppliers != null) {
@@ -1481,6 +1564,211 @@ class _MultiItemConfirmationCard extends StatelessWidget {
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF1E293B)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== Agent Step / Result Cards ====================
+
+class _AgentStepCard extends StatelessWidget {
+  final List<AgentStep> steps;
+  final bool live;
+
+  const _AgentStepCard({required this.steps, this.live = false});
+
+  IconData _icon(AgentStepType t) => switch (t) {
+        AgentStepType.thought => Icons.psychology_outlined,
+        AgentStepType.tool => Icons.build_rounded,
+        AgentStepType.result => Icons.check_circle_outline,
+        AgentStepType.answer => Icons.smart_toy_outlined,
+      };
+
+  Color _color(AgentStepType t) => switch (t) {
+        AgentStepType.thought => const Color(0xFF7C3AED),
+        AgentStepType.tool => const Color(0xFF0284C7),
+        AgentStepType.result => const Color(0xFF059669),
+        AgentStepType.answer => const Color(0xFF0F766E),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final last = steps.isNotEmpty ? steps.last : null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _AssistantAvatar(),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    if (live)
+                      const SizedBox(
+                        width: 13,
+                        height: 13,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Color(0xFF0F766E)),
+                      )
+                    else
+                      const Icon(Icons.smart_toy_outlined,
+                          size: 15, color: Color(0xFF0F766E)),
+                    const SizedBox(width: 6),
+                    Text(live ? 'Agent working…' : 'Agent trace',
+                        style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F766E))),
+                  ]),
+                  const SizedBox(height: 8),
+                  ExpansionTileTheme(
+                    data: const ExpansionTileThemeData(
+                        iconColor: Color(0xFF94A3B8)),
+                    child: Theme(
+                      data: Theme.of(context)
+                          .copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: EdgeInsets.zero,
+                        initiallyExpanded: true,
+                        title: Text(
+                          last?.title ?? 'Starting…',
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155)),
+                        ),
+                        children: steps
+                            .map((s) => Container(
+                                  margin:
+                                      const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius:
+                                        BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(_icon(s.type),
+                                          size: 13, color: _color(s.type)),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(s.title,
+                                                style: const TextStyle(
+                                                    fontSize: 11.5,
+                                                    fontWeight:
+                                                        FontWeight.w600,
+                                                    color: Color(
+                                                        0xFF334155))),
+                                            if (s.detail.isNotEmpty)
+                                              Text(s.detail,
+                                                  style: const TextStyle(
+                                                      fontSize: 10.5,
+                                                      color: Color(
+                                                          0xFF94A3B8))),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentResultCard extends StatelessWidget {
+  final String text;
+  final List<PlacedOrder> orders;
+  final VoidCallback onViewOrders;
+
+  const _AgentResultCard({
+    required this.text,
+    required this.orders,
+    required this.onViewOrders,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _AssistantAvatar(),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ...orders.map((o) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(children: [
+                          const Icon(Icons.receipt_long_rounded,
+                              size: 14, color: Color(0xFF059669)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                                '${o.productName} × ${o.quantity} ${o.unit} — ৳${o.totalPrice.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFF334155))),
+                          ),
+                        ]),
+                      )),
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: onViewOrders,
+                    icon: const Icon(Icons.receipt_outlined, size: 15),
+                    label: Text('View Order #ORD-${orders.first.orderId.substring(0, 4)}',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF0F4C3A),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
