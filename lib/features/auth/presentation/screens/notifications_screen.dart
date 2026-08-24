@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
+import 'shop_owner_home_screen.dart';
+import 'stockholder_home_screen.dart';
 
 class ShopOwnerNotificationsScreen extends StatefulWidget {
   const ShopOwnerNotificationsScreen({super.key});
@@ -24,6 +26,27 @@ class _ShopOwnerNotificationsScreenState
   void initState() {
     super.initState();
     _fetchNotifications();
+  }
+
+  /// Robust back navigation. On Flutter web a browser refresh while this
+  /// screen is open makes it the root route — plain pop() then does nothing.
+  /// Falls back to the correct role home screen instead of a dead button.
+  Future<void> _goBack() async {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final role = prefs.getString('user_role') ?? 'shop_owner';
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => role.toLowerCase() == 'supplier'
+            ? const StockholderHomeScreen()
+            : const ShopOwnerHomeScreen(),
+      ),
+      (route) => false,
+    );
   }
 
   Future<void> _fetchNotifications() async {
@@ -254,7 +277,7 @@ class _ShopOwnerNotificationsScreenState
             children: [
               const SizedBox(width: 16),
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: _goBack,
                 child: Container(
                   width: 34,
                   height: 34,

@@ -74,8 +74,11 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
     AgentOrderIntent? orderIntent;
 
     if (DeepSeekConfig.isConfigured) {
-      // LLM handles ANY phrasing: typos, filler, no keywords needed
-      orderIntent = await DeepSeekPlanner.extractIntent(text);
+      // LLM handles ANY phrasing: typos, filler, no keywords needed.
+      // On rate-limit/outage fall back to the local parser so ordering
+      // still works offline of the LLM.
+      orderIntent = await DeepSeekPlanner.extractIntent(text) ??
+          AgentEngine.parseOrderIntent(text);
     } else {
       orderIntent = AgentEngine.parseOrderIntent(text);
     }
@@ -83,7 +86,6 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
     if (orderIntent != null) {
       try {
         await _runAgentOrder(orderIntent.items, sortBy: orderIntent.sortBy);
-      } catch (e) {
       } catch (e) {
         // Engine already reports per-item failures; surface hard crashes too
         if (mounted) {
@@ -136,7 +138,9 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
     _scrollToBottom();
 
     final result = await _agent.runOrderTask(items,
-        sortBy: sortBy, onStep: (step) {
+        sortBy: sortBy,
+        onConfirm: _showOrderConfirmationDialog,
+        onStep: (step) {
       if (!mounted) return;
       final msg = _messages[liveIndex];
       setState(() {
@@ -160,6 +164,124 @@ class _TradeLinkAssistantScreenState extends State<TradeLinkAssistantScreen> {
       );
     });
     _scrollToBottom();
+  }
+
+  /// Blocks the agent loop until the user confirms or cancels the order.
+  Future<bool> _showOrderConfirmationDialog(OrderProposal p) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: _asBorderGray),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _asPrimaryTeal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.receipt_long,
+                  color: _asPrimaryTeal, size: 22),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text('Confirm Order',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _asDarkText)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _confirmRow('Product', p.productName),
+            _confirmRow('Supplier', p.supplierName),
+            _confirmRow('Unit price',
+                '৳${p.pricePerUnit.toStringAsFixed(2)}/${p.unit}'),
+            _confirmRow(
+                'Quantity', '${p.quantity} ${p.unit}'),
+            _confirmRow('Distance', p.distanceLabel),
+            _confirmRow(
+                'Rating',
+                p.ratingCount > 0
+                    ? '${p.rating}★ (${p.ratingCount} review${p.ratingCount > 1 ? 's' : ''})'
+                    : 'No reviews yet'),
+            const Divider(height: 20, color: _asBorderGray),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _asDarkText)),
+                Text(
+                  '৳${p.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: _asPrimaryTeal),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(
+                    color: _asMutedText, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _asPrimaryTeal,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Confirm Order',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Widget _confirmRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 13, color: _asMutedText)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _asDarkText)),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 'Sort by distance instead' chip — re-sorts the ACTIVE result set

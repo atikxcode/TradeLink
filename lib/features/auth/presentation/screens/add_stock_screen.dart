@@ -335,6 +335,7 @@ class _AddStockScreenState extends State<AddStockScreen> {
       child: Container(
         height: 140,
         width: double.infinity,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),

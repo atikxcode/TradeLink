@@ -55,8 +55,37 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: _isLoading
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'My Orders',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if (!_isLoading)
+              Text(
+                '${_orders.length} order${_orders.length == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+          ],
+        ),
+      ),
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)))
           : RefreshIndicator(
               onRefresh: _fetchOrders,
@@ -64,15 +93,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 children: [
-                  const Text(
-                    'My Orders',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   if (_orders.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(32),
@@ -178,6 +198,19 @@ class _ShopOwnerOrderCard extends StatelessWidget {
     }
   }
 
+  String get _qtyLabel {
+    if (quantity is num) {
+      final q = quantity as num;
+      return q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(1);
+    }
+    return '$quantity';
+  }
+
+  String get _totalLabel {
+    if (totalAmount is num) return '৳${(totalAmount as num).toStringAsFixed(2)}';
+    return '৳$totalAmount';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -196,7 +229,7 @@ class _ShopOwnerOrderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '$productName (${quantity.toStringAsFixed(0)} $unit)',
+                  '$productName ($_qtyLabel $unit)',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -224,7 +257,7 @@ class _ShopOwnerOrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            totalAmount is num ? 'Total: ৳${(totalAmount as num).toStringAsFixed(2)}' : 'Total: ৳$totalAmount',
+            'Total: $_totalLabel',
             style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 4),

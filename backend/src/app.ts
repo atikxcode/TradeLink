@@ -4,6 +4,7 @@ import path from 'path';
 import { env } from './config/env.js';
 import { requireAuth } from './middleware/auth.js';
 import stockholderRoutes from './routes/stockholder.routes.js';
+import stockImageRoutes from './routes/image.routes.js';
 
 export const app = express();
 
@@ -12,6 +13,9 @@ app.set('trust proxy', 1);
 app.use(cors({ origin: true }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Public image endpoint — must stay outside requireAuth (Image.network
+// sends no auth headers). Backed by Postgres, survives restarts.
+app.use('/stock-images', stockImageRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ success: true, message: 'TradeLink API is running' });

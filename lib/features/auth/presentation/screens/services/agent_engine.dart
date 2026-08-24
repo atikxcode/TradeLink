@@ -48,14 +48,44 @@ class AgentRunResult {
   final String reply;
   final List<PlacedOrder> placedOrders;
   final List<String> failedItems;
+  final List<String> cancelledItems;
 
   const AgentRunResult({
     required this.steps,
     required this.reply,
     required this.placedOrders,
     required this.failedItems,
+    this.cancelledItems = const [],
   });
 }
+
+/// A pending order awaiting explicit user confirmation before placement.
+class OrderProposal {
+  final String productName;
+  final String supplierName;
+  final double pricePerUnit;
+  final String unit;
+  final int quantity;
+  final double total;
+  final String distanceLabel;
+  final double rating;
+  final int ratingCount;
+
+  const OrderProposal({
+    required this.productName,
+    required this.supplierName,
+    required this.pricePerUnit,
+    required this.unit,
+    required this.quantity,
+    required this.total,
+    required this.distanceLabel,
+    required this.rating,
+    required this.ratingCount,
+  });
+}
+
+/// UI hook: resolves true when the user confirms the order.
+typedef ConfirmOrderCallback = Future<bool> Function(OrderProposal proposal);
 
 /// Parsed bulk-order item coming from the user prompt.
 class AgentOrderItem {
@@ -161,7 +191,7 @@ class AgentEngine {
   static final RegExp _fillerWords = RegExp(
     r'\b(order|oder|odrer|buy|purches|purchase|get|gimme|give|need|want|'
     r'for me|forme|pls|plz|please|aamake|amar|'
-    r'cheapest|chepest|cheepset|cheap|low price|lowest|most expensive|expensive|price|'
+    r'cheapest|chepest|cheepset|cheap|low price|low cost|lowest|low|most expensive|expensive|price|'
     r'nearest|near me|near|closer|'
     r'best|top rated|highest rated|highest|rating|rated|top|quality|good|fresh|'
     r'littter|littr|kino|kinbo|dorkar|lagbe|chaile|dao|deu|me|i|my|the|a|an|some|any|of|and)\b',
@@ -191,12 +221,20 @@ class AgentEngine {
     if (lower.contains('chepest') ||
         lower.contains('cheapest') ||
         lower.contains('cheap') ||
+        lower.contains(RegExp(r'\blow (price|cost)\b')) ||
         lower.contains('lowest price')) {
       sortBy = 'price_asc';
     } else if (lower.contains('highest price') ||
         lower.contains('most expensive') ||
         lower.contains('expensive')) {
       sortBy = 'price_desc';
+    } else if (lower.contains('lowest rated') ||
+        lower.contains('worst rated') ||
+        lower.contains('low rating') ||
+        RegExp(r'\blowest\b')
+            .hasMatch(lower) &&
+            (lower.contains('rated') || lower.contains('rating'))) {
+      sortBy = 'rating_asc';
     } else if (lower.contains('rating') ||
         lower.contains('highest rating') ||
         lower.contains('best rated') ||
@@ -264,14 +302,21 @@ class AgentEngine {
   }
 
   /// Maps the 4-way sort values to backend-supported keys.
+  /// Accepts BOTH vocabularies: regex parser ('price_asc', 'rating_desc')
+  /// and LLM planner ('price', 'rating').
   static String mapSortForBackend(String sortBy) {
     switch (sortBy) {
+      case 'price':
       case 'price_asc':
         return 'price';
       case 'price_desc':
         return 'price_desc';
+      case 'rating':
       case 'rating_desc':
         return 'rating';
+      case 'rating_asc':
+        return 'rating_asc';
+      case 'distance':
       case 'distance_asc':
       default:
         return 'distance';
@@ -283,12 +328,14 @@ class AgentEngine {
   Future<AgentRunResult> runOrderTask(
     List<AgentOrderItem> items, {
     StepCallback? onStep,
+    ConfirmOrderCallback? onConfirm,
     String sortBy = 'distance_asc',
   }) async {
     final backendSort = mapSortForBackend(sortBy);
     final steps = <AgentStep>[];
     final placed = <PlacedOrder>[];
     final failed = <String>[];
+    final cancelled = <String>[];
     final queue = List<AgentOrderItem>.from(items);
 
     void emit(AgentStep s) {
@@ -386,6 +433,37 @@ class AgentEngine {
         qty = best.quantityAvailable.toInt();
       }
 
+      // ── Confirmation gate: never order without explicit approval ──
+      if (onConfirm != null) {
+        final proposal = OrderProposal(
+          productName: best.productName,
+          supplierName: best.supplierName,
+          pricePerUnit: best.pricePerUnit,
+          unit: best.unit,
+          quantity: qty,
+          total: best.pricePerUnit * qty,
+          distanceLabel: best.distanceLabel,
+          rating: best.rating,
+          ratingCount: best.ratingCount,
+        );
+        emit(AgentStep(
+          type: AgentStepType.thought,
+          title: 'Awaiting confirmation for "${best.productName}" ×$qty',
+          detail:
+              '৳${best.pricePerUnit.toStringAsFixed(2)}/${best.unit} → total ৳${proposal.total.toStringAsFixed(2)}',
+        ));
+        final confirmed = await onConfirm(proposal);
+        if (!confirmed) {
+          emit(AgentStep(
+            type: AgentStepType.result,
+            title: 'Cancelled by user',
+            detail: '"${item.name}" was not ordered.',
+          ));
+          cancelled.add(item.name);
+          continue;
+        }
+      }
+
       // ── Tool: placeOrder ──
       emit(AgentStep(
         type: AgentStepType.tool,
@@ -438,17 +516,22 @@ class AgentEngine {
 
     return AgentRunResult(
       steps: steps,
-      reply: _summarize(placed, failed),
+      reply: _summarize(placed, failed, cancelled),
       placedOrders: placed,
       failedItems: failed,
+      cancelledItems: cancelled,
     );
   }
 
-  String _summarize(List<PlacedOrder> placed, List<String> failed) {
+  String _summarize(
+      List<PlacedOrder> placed, List<String> failed, List<String> cancelled) {
     final parts = <String>[];
     if (placed.isNotEmpty) {
       parts.add(
           'Placed ${placed.length} order${placed.length > 1 ? 's' : ''}: ${placed.map((p) => p.productName).join(', ')}');
+    }
+    if (cancelled.isNotEmpty) {
+      parts.add('Cancelled: ${cancelled.join(', ')}');
     }
     if (failed.isNotEmpty) {
       parts.add('Could not order: ${failed.join(', ')}');

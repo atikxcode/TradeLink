@@ -3,7 +3,6 @@ import { AuthRequest } from '../middleware/auth.js';
 import { sendSms } from '../services/smsService.js';
 import { db } from '../db/pool.js';
 import crypto from 'crypto';
-import { sendSms } from '../services/smsService.js';
 
 function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex');
