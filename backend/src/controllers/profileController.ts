@@ -19,6 +19,7 @@ export const updateProfileHandler = asyncHandler(async (req: AuthRequest, res: R
 
   const payload: UpdateProfilePayload = {};
   if (body.fullName !== undefined) payload.fullName = String(body.fullName);
+  if (body.phoneNumber !== undefined) payload.phoneNumber = String(body.phoneNumber);
   if (body.businessName !== undefined) payload.businessName = String(body.businessName);
   if (body.category !== undefined) payload.category = String(body.category);
   if (body.tradeLicense !== undefined) payload.tradeLicense = String(body.tradeLicense);

@@ -62,16 +62,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  String? _formatPhoneNumber(String input) {
+    String digits = input.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('880')) {
+      digits = '0${digits.substring(3)}';
+    } else if (digits.startsWith('0')) {
+      // already starts with 0
+    } else {
+      digits = '0$digits';
+    }
+    if (digits.length == 11 && digits.startsWith('01')) {
+      return digits;
+    }
+    return null;
+  }
+
   Future<void> _handleRegister() async {
     final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim();
+    final rawPhone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
     final businessName = _businessNameController.text.trim();
 
-    if (name.isEmpty || phone.isEmpty || password.isEmpty || businessName.isEmpty) {
+    final phone = _formatPhoneNumber(rawPhone);
+
+    if (name.isEmpty || rawPhone.isEmpty || password.isEmpty || businessName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill in all required fields.'),
+          backgroundColor: AppColors.cancelled,
+        ),
+      );
+      return;
+    }
+
+    if (phone == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 11-digit Bangladeshi phone number.'),
           backgroundColor: AppColors.cancelled,
         ),
       );
@@ -256,8 +283,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             const SizedBox(height: 8),
                             _buildTextField(
                               controller: _phoneController,
-                              hintText: '+880 1XXX-XXXXXX',
+                              hintText: '1XXX-XXXXXX',
                               keyboardType: TextInputType.phone,
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.only(left: 16, right: 8),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '+880',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                             ),
 
                             const SizedBox(height: 16),
@@ -462,6 +507,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     TextInputType keyboardType = TextInputType.text,
     bool obscureText = false,
     Widget? suffixIcon,
+    Widget? prefixIcon,
+    BoxConstraints? prefixIconConstraints,
   }) {
     return TextField(
       controller: controller,
@@ -485,6 +532,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           vertical: 16,
         ),
         suffixIcon: suffixIcon,
+        prefixIcon: prefixIcon,
+        prefixIconConstraints: prefixIconConstraints,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(

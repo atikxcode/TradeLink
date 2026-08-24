@@ -369,6 +369,49 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
     }
   }
 
+  Future<void> _cancelDemand(String demandId) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Demand'),
+        content: const Text('Are you sure you want to cancel this demand?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes', style: TextStyle(color: AppColors.cancelled)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    final data = await ApiService.patch('/demands/$demandId/cancel');
+    if (data != null && mounted) {
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text('Demand cancelled successfully'),
+          backgroundColor: AppColors.accepted,
+        ),
+      );
+      _fetchDashboardData();
+    } else if (mounted) {
+      setState(() => _isLoading = false);
+      scaffold.showSnackBar(
+        const SnackBar(
+          content: Text('Failed to cancel demand'),
+          backgroundColor: AppColors.cancelled,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -580,11 +623,13 @@ class _ShopOwnerDashboardState extends State<ShopOwnerDashboard> {
               if (status == 'CANCELLED') statusColor = AppColors.cancelled;
 
               return _DemandStatusCard(
+                demandId: demand['id']?.toString() ?? '',
                 title: '$productName, $quantity $unit',
                 subtitle:
                     'Status: $status ${createdAt.length >= 10 ? "· ${createdAt.substring(0, 10)}" : ""}',
                 status: status,
                 statusColor: statusColor,
+                onCancel: _cancelDemand,
               );
             }),
           const SizedBox(height: 24),
@@ -659,16 +704,20 @@ class _StatCard extends StatelessWidget {
 }
 
 class _DemandStatusCard extends StatelessWidget {
+  final String demandId;
   final String title;
   final String subtitle;
   final String status;
   final Color statusColor;
+  final Function(String) onCancel;
 
   const _DemandStatusCard({
+    required this.demandId,
     required this.title,
     required this.subtitle,
     required this.status,
     required this.statusColor,
+    required this.onCancel,
   });
 
   @override
@@ -686,6 +735,7 @@ class _DemandStatusCard extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
@@ -698,23 +748,42 @@ class _DemandStatusCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: statusColor,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor,
+                      ),
+                    ),
                   ),
-                ),
+                  if (status == 'PENDING' || status == 'OPEN') ...[
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () => onCancel(demandId),
+                      child: const Text(
+                        'Cancel Demand',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.cancelled,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

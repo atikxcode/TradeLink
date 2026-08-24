@@ -92,6 +92,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
 
 export interface UpdateProfilePayload {
   fullName?: string;
+  phoneNumber?: string;
   businessName?: string;
   category?: string;
   tradeLicense?: string;
@@ -113,6 +114,10 @@ export async function updateProfile(
   if (payload.fullName !== undefined) {
     fields.push(`full_name = $${idx++}`);
     values.push(payload.fullName);
+  }
+  if (payload.phoneNumber !== undefined) {
+    fields.push(`phone_number = $${idx++}`);
+    values.push(payload.phoneNumber);
   }
   if (payload.businessName !== undefined) {
     fields.push(`business_name = $${idx++}`);
@@ -154,15 +159,11 @@ export async function updateProfile(
 
   fields.push(`updated_at = now()`);
 
-  const { rows } = await db.query<UserRow>(
+  await db.query(
     `UPDATE users SET ${fields.join(', ')}
-     WHERE id = $${idx}
-     RETURNING id, role, full_name, phone_number, business_name, category,
-               trade_license, min_order_value, supply_radius,
-               latitude, longitude, address, created_at, updated_at`,
+     WHERE id = $${idx}`,
     [...values, userId],
   );
 
-  if (rows.length === 0) return null;
-  return mapProfileRow(rows[0]);
+  return getProfile(userId);
 }

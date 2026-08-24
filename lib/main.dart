@@ -6,6 +6,10 @@ import 'features/auth/presentation/screens/login_screen.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'features/auth/presentation/screens/shop_owner_home_screen.dart';
+import 'features/auth/presentation/screens/stockholder_home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
@@ -31,7 +35,56 @@ class TradelinkApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const LoginScreen(),
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    final role = prefs.getString('user_role');
+
+    if (!mounted) return;
+
+    if (userId != null && userId.isNotEmpty) {
+      if (role == 'shop_owner') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const ShopOwnerHomeScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const StockholderHomeScreen()),
+        );
+      }
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      body: Center(
+        child: CircularProgressIndicator(color: AppColors.primaryTeal),
+      ),
     );
   }
 }

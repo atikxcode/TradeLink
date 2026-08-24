@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
+import 'delivery_login_screen.dart';
 import 'register_screen.dart';
 import 'shop_owner_home_screen.dart';
 import 'stockholder_home_screen.dart';
@@ -31,16 +32,44 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  String? _formatPhoneNumber(String input) {
+    String digits = input.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('880')) {
+      digits = '0${digits.substring(3)}';
+    } else if (digits.startsWith('0')) {
+      // already starts with 0
+    } else {
+      digits = '0$digits';
+    }
+    if (digits.length == 11 && digits.startsWith('01')) {
+      return digits;
+    }
+    return null;
+  }
+
   Future<void> _handleLogin() async {
     final roleStr = _selectedRole == UserRole.shopOwner ? 'shop_owner' : 'supplier';
     final roleName = _selectedRole == UserRole.shopOwner ? 'Shop Owner' : 'Supplier';
-    final phone = _phoneController.text.trim();
+    final rawPhone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (phone.isEmpty || password.isEmpty) {
+    final phone = _formatPhoneNumber(rawPhone);
+
+    if (phone == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter both phone number and password.'),
+          content: Text('Please enter a valid 11-digit Bangladeshi phone number.'),
+          backgroundColor: AppColors.cancelled,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your password.'),
           backgroundColor: AppColors.cancelled,
           behavior: SnackBarBehavior.floating,
         ),
@@ -232,12 +261,24 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                             decoration: InputDecoration(
-                              prefixText: '+880 ',
-                              prefixStyle: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.only(left: 16, right: 8),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '+880',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                               hintText: '1XXX-XXXXXX',
                               hintStyle: const TextStyle(
                                 color: AppColors.textHint,
@@ -402,6 +443,30 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 24),
+                          // Delivery Man Login Link
+                          Align(
+                            alignment: Alignment.center,
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const DeliveryLoginScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Login as Delivery Man',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange, // Distinct color
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),

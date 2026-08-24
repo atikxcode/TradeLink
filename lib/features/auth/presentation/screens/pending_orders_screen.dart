@@ -123,6 +123,91 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     }
   }
 
+  Future<void> _assignDeliveryMan(String orderId) async {
+    // 1. Fetch delivery men
+    setState(() => _isActionInProgress = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+      final role = prefs.getString('user_role') ?? 'supplier';
+      
+      final res = await http.get(
+        Uri.parse('https://tradelink-2.onrender.com/api/v1/suppliers/delivery-men'),
+        headers: {'X-User-Id': '$userId::$role'},
+      );
+      final body = jsonDecode(res.body);
+      
+      setState(() => _isActionInProgress = false);
+      
+      if (res.statusCode != 200 || body['success'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load delivery men')));
+        return;
+      }
+      
+      final List deliveryMen = body['data'] ?? [];
+      if (deliveryMen.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No delivery men available. Add one in Profile.')));
+        return;
+      }
+      
+      // 2. Show dialog to select one
+      final selectedId = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Assign Delivery Man'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: deliveryMen.length,
+                itemBuilder: (context, index) {
+                  final dm = deliveryMen[index];
+                  return ListTile(
+                    leading: const Icon(Icons.delivery_dining),
+                    title: Text(dm['full_name'] ?? 'Unknown'),
+                    subtitle: Text(dm['phone_number'] ?? ''),
+                    onTap: () => Navigator.pop(ctx, dm['id']),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ],
+          );
+        },
+      );
+      
+      if (selectedId == null) return;
+      
+      // 3. Assign via API
+      setState(() => _isActionInProgress = true);
+      
+      final patchRes = await http.patch(
+        Uri.parse('https://tradelink-2.onrender.com/api/v1/orders/$orderId/assign-delivery'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': '$userId::$role',
+        },
+        body: jsonEncode({'deliveryManId': selectedId}),
+      );
+      
+      setState(() => _isActionInProgress = false);
+      final patchBody = jsonDecode(patchRes.body);
+      if (patchRes.statusCode == 200 && patchBody['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery man assigned successfully!'), backgroundColor: Color(0xFF10B981)));
+        _fetchPendingOrders();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(patchBody['error'] ?? 'Failed to assign'), backgroundColor: const Color(0xFFEF4444)));
+      }
+      
+    } catch (e) {
+      setState(() => _isActionInProgress = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error')));
+    }
+  }
+
   Future<void> _verifyDelivery(String orderId) async {
     final otpController = TextEditingController();
 
@@ -402,10 +487,11 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
                             deliveryLocation: order['deliveryLocation'],
                             deliveryOtp: order['deliveryOtp'],
                             isActionInProgress: _isActionInProgress,
-                            onAccept: () => _acceptOrder(order['orderId']),
-                            onDecline: () => _declineOrder(order['orderId']),
-                            onOutForDelivery: () => _markOutOfDelivery(order['orderId']),
-                            onVerifyDelivery: () => _verifyDelivery(order['orderId']),
+                            onAccept: () => _acceptOrder(order['orderId'] ?? ''),
+                            onDecline: () => _declineOrder(order['orderId'] ?? ''),
+                            onOutForDelivery: () => _markOutOfDelivery(order['orderId'] ?? ''),
+                            onVerifyDelivery: () => _verifyDelivery(order['orderId'] ?? ''),
+                            onAssignDelivery: () => _assignDeliveryMan(order['orderId'] ?? ''),
                           );
                         },
                       ),
@@ -524,6 +610,7 @@ class _SupplierOrderCard extends StatelessWidget {
   final VoidCallback onDecline;
   final VoidCallback onOutForDelivery;
   final VoidCallback onVerifyDelivery;
+  final VoidCallback? onAssignDelivery;
 
   const _SupplierOrderCard({
     required this.orderId,
@@ -542,6 +629,7 @@ class _SupplierOrderCard extends StatelessWidget {
     required this.onDecline,
     required this.onOutForDelivery,
     required this.onVerifyDelivery,
+    this.onAssignDelivery,
   });
 
   Color get _statusColor {
@@ -697,6 +785,22 @@ class _SupplierOrderCard extends StatelessWidget {
                   label: const Text('Mark Out for Delivery'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isActionInProgress ? null : onAssignDelivery,
+                  icon: const Icon(Icons.delivery_dining_outlined, size: 18),
+                  label: const Text('Assign Delivery Man'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade700,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
