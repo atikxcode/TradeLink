@@ -24,14 +24,23 @@ CRITICAL RULES:
    "cheapest", "littter" -> "litre").
 4. Extract numeric quantity into "quantity" (default: 1).
 5. Map adjectives to "sortBy":
-   - "cheapest", "lowest price", "cheap" -> "price"
+   - "cheapest", "lowest price", "cheap", "low price" -> "price"
    - "expensive", "highest price" -> "price_desc"
    - "best", "highest rating", "top rated" -> "rating"
+   - "lowest rated", "worst rated", "low rating" -> "rating_asc"
    - "nearest", "closest", default -> "distance"
 
 Output strictly one minified JSON object, no prose, no markdown fences:
 {"items":[{"query":"<clean_product_name>","quantity":<int>}],"sortBy":"<sort_type>"}
 ''';
+
+  /// Fallback chain — free models are aggressively rate-limited (HTTP 429),
+  /// so we rotate through alternatives before giving up to the regex parser.
+  static const List<String> _modelChain = [
+    'google/gemma-4-31b-it:free',
+    'nvidia/nemotron-3-nano-30b-a3b:free',
+    'liquid/lfm-2.5-2.6b:free',
+  ];
 
   /// Calls the LLM and returns parsed items + sort preference.
   /// Returns null on missing config, network error, or unparseable output.
@@ -40,9 +49,23 @@ Output strictly one minified JSON object, no prose, no markdown fences:
     final text = userInput.trim();
     if (text.length < 3) return null;
 
+    final models = <String>[
+      if (!_modelChain.contains(DeepSeekConfig.model)) DeepSeekConfig.model,
+      ..._modelChain,
+    ];
+
+    for (final model in models) {
+      final result = await _callModel(model, text);
+      if (result != null) return result;
+    }
+    return null;
+  }
+
+  static Future<AgentOrderIntent?> _callModel(
+      String model, String text) async {
     try {
       final body = jsonEncode({
-        'model': DeepSeekConfig.model,
+        'model': model,
         'temperature': 0,
         'max_tokens': 300,
         'messages': [
@@ -66,8 +89,17 @@ Output strictly one minified JSON object, no prose, no markdown fences:
               headers: headers, body: body)
           .timeout(const Duration(seconds: 20));
 
+      if (response.statusCode == 429 || response.statusCode >= 500) {
+        // Brief pause honors Retry-After when provided, then rotate models.
+        final retryAfter =
+            int.tryParse(response.headers['retry-after'] ?? '') ?? 1;
+        await Future<void>.delayed(
+            Duration(seconds: retryAfter.clamp(1, 3)));
+        debugPrint('[DeepSeekPlanner] $model rate-limited, rotating');
+        return null;
+      }
       if (response.statusCode != 200) {
-        debugPrint('[DeepSeekPlanner] HTTP ${response.statusCode}');
+        debugPrint('[DeepSeekPlanner] $model HTTP ${response.statusCode}');
         return null;
       }
 
@@ -76,10 +108,10 @@ Output strictly one minified JSON object, no prose, no markdown fences:
           decoded['choices']?[0]?['message']?['content']?.toString() ?? '';
       return _parseJsonPayload(content);
     } on TimeoutException {
-      debugPrint('[DeepSeekPlanner] timeout');
+      debugPrint('[DeepSeekPlanner] $model timeout');
       return null;
     } catch (e) {
-      debugPrint('[DeepSeekPlanner] error: $e');
+      debugPrint('[DeepSeekPlanner] $model error: $e');
       return null;
     }
   }
@@ -99,7 +131,7 @@ Output strictly one minified JSON object, no prose, no markdown fences:
     try {
       final obj = jsonDecode(c.substring(start, end + 1));
       final sortByRaw = obj['sortBy']?.toString() ?? 'distance';
-      const allowed = ['price', 'price_desc', 'rating', 'distance'];
+      const allowed = ['price', 'price_desc', 'rating', 'rating_asc', 'distance'];
       final sortBy = allowed.contains(sortByRaw) ? sortByRaw : 'distance';
 
       final itemsJson = obj['items'];

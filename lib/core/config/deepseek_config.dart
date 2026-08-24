@@ -14,7 +14,7 @@ class DeepSeekConfig {
   );
   static const String model = String.fromEnvironment(
     'LLM_MODEL',
-    defaultValue: 'deepseek/deepseek-chat:free',
+    defaultValue: 'google/gemma-4-31b-it:free',
   );
 
   static bool get isConfigured => apiKey.trim().isNotEmpty;

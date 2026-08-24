@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .env
+
+# Local launcher with secret key - never commit
+run_with_llm.sh

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { publishStock, listStockHandler, updateStockHandler, deleteStockHandler } from '../controllers/stockController.js';
 import { getHomeStatsHandler } from '../controllers/homeStatsController.js';
 import {
@@ -72,16 +71,10 @@ import {
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(process.cwd(), 'uploads'));
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
+// Configure multer for image uploads.
+// memoryStorage: bytes go into Postgres (stock_images) so they survive
+// Render restarts — the old diskStorage target (/uploads) is ephemeral.
+const storage = multer.memoryStorage();
 
 const fileFilter = (
   req: Express.Request,

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import type { AuthRequest } from '../middleware/auth.js';
 import { db } from '../db/pool.js';
 import crypto from 'crypto';
 
@@ -14,7 +15,7 @@ function hashPassword(password: string): string {
  */
 export async function createDeliveryManHandler(req: Request, res: Response) {
   try {
-    const supplierId = req.user?.id;
+    const supplierId = (req as AuthRequest).userId;
     const { fullName, phoneNumber, password } = req.body;
 
     if (!fullName || !phoneNumber || !password) {
@@ -52,7 +53,7 @@ export async function createDeliveryManHandler(req: Request, res: Response) {
  */
 export async function listDeliveryMenHandler(req: Request, res: Response) {
   try {
-    const supplierId = req.user?.id;
+    const supplierId = (req as AuthRequest).userId;
 
     const result = await db.query(
       `SELECT id, full_name, phone_number, created_at, force_password_reset
@@ -74,7 +75,7 @@ export async function listDeliveryMenHandler(req: Request, res: Response) {
  */
 export async function assignDeliveryManHandler(req: Request, res: Response) {
   try {
-    const supplierId = req.user?.id;
+    const supplierId = (req as AuthRequest).userId;
     const { id: orderId } = req.params;
     const { deliveryManId } = req.body;
 
@@ -128,7 +129,7 @@ export async function assignDeliveryManHandler(req: Request, res: Response) {
 export async function getDeliveryManOrdersHandler(req: Request, res: Response) {
   try {
     // Note: This endpoint will be called directly by the delivery man using X-User-Id header for auth (mock)
-    const deliveryManId = req.user?.id;
+    const deliveryManId = (req as AuthRequest).userId;
 
     const result = await db.query(
       `SELECT o.id, o.quantity, o.unit_price, o.total_amount, o.status, o.created_at, o.payment_status,
@@ -154,7 +155,7 @@ export async function getDeliveryManOrdersHandler(req: Request, res: Response) {
  */
 export async function markOrderDeliveredHandler(req: Request, res: Response) {
   try {
-    const deliveryManId = req.user?.id;
+    const deliveryManId = (req as AuthRequest).userId;
     const { id: orderId } = req.params;
 
     // Verify order belongs to this delivery man
