@@ -15,6 +15,8 @@ export const updateProfileHandler = asyncHandler(async (req, res) => {
     const payload = {};
     if (body.fullName !== undefined)
         payload.fullName = String(body.fullName);
+    if (body.phoneNumber !== undefined)
+        payload.phoneNumber = String(body.phoneNumber);
     if (body.businessName !== undefined)
         payload.businessName = String(body.businessName);
     if (body.category !== undefined)

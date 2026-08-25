@@ -1,6 +1,13 @@
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { createStockSchema } from '../middleware/validation.js';
-import { createStock, listStock, updateStock, deleteStock } from '../services/stockService.js';
+import { createStock, listStock, updateStock, deleteStock, saveStockImage } from '../services/stockService.js';
+/** Persist uploaded bytes in Postgres and return a stable public URL. */
+async function storeImageAndBuildUrl(req, stockId, file) {
+    await saveStockImage(stockId, file.mimetype, file.buffer);
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // `v` busts Flutter's Image.network cache when the image is replaced.
+    return `${baseUrl}/stock-images/${stockId}?v=${Date.now()}`;
+}
 export const publishStock = asyncHandler(async (req, res) => {
     const stockholderId = req.userId;
     // Handle multipart form data with optional image
@@ -34,6 +41,12 @@ export const publishStock = asyncHandler(async (req, res) => {
     // Validate with zod
     const validatedPayload = createStockSchema.parse(payload);
     const stock = await createStock(stockholderId, validatedPayload);
+    // Store the image bytes in Postgres after we have the stock id
+    if (file) {
+        const imageUrl = await storeImageAndBuildUrl(req, stock.id, file);
+        await updateStock(stockholderId, stock.id, { imageUrl });
+        stock.imageUrl = imageUrl;
+    }
     res.status(201).json({ success: true, data: stock });
 });
 export const listStockHandler = asyncHandler(async (req, res) => {
@@ -59,10 +72,9 @@ export const updateStockHandler = asyncHandler(async (req, res) => {
         payload.unit = String(body.unit);
     if (body.deliveryRadiusKm !== undefined)
         payload.deliveryRadiusKm = Number(body.deliveryRadiusKm);
-    // Handle image upload
+    // Handle image upload — bytes go to Postgres, not the ephemeral disk
     if (file) {
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
-        payload.imageUrl = `${baseUrl}/uploads/${file.filename}`;
+        payload.imageUrl = await storeImageAndBuildUrl(req, stockId, file);
     }
     else if (body.imageUrl !== undefined) {
         payload.imageUrl = String(body.imageUrl);

@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { db } from '../db/pool.js';
+import { sendSms } from './smsService.js';
 function httpError(message, status) {
     const error = new Error(message);
     error.status = status;
@@ -154,7 +155,14 @@ export async function markOutOfDelivery(orderId, supplierId) {
             'Order Out for Delivery!',
             `Your delivery OTP is ${otp}. Share this 6-digit code with the delivery person upon arrival.`,
         ]);
+        // Fetch user phone number for SMS
+        const userQuery = await client.query(`SELECT phone_number, business_name FROM users WHERE id = $1`, [order.shop_owner_id]);
         await client.query('COMMIT');
+        // Send SMS asynchronously after commit
+        if (userQuery.rows.length > 0) {
+            const phone = userQuery.rows[0].phone_number;
+            sendSms(phone, `TradeLink: Your delivery OTP is ${otp} for order ${order.product_name}. Share this 6-digit code with the delivery person.`);
+        }
         const { rows: updated } = await client.query(`SELECT * FROM orders WHERE id = $1`, [orderId]);
         return {
             order: mapOrderRow(updated[0]),

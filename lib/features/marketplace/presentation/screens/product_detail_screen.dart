@@ -302,6 +302,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
       await SupabaseConfig.client.from('demands').insert({
         'shop_owner_id': userId,
+        'target_supplier_id': product.stockholderId,
         'product_name': product.productName,
         'category': product.category,
         'quantity': quantity,

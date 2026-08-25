@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { db } from '../db/pool.js';
+import { sendSms } from './smsService.js';
 export function mapOrderRow(row) {
     return {
         id: row.id,
@@ -51,7 +52,8 @@ export async function acceptDemand(demandId, supplierId, businessName) {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
-        const demand = await client.query(`SELECT id, shop_owner_id, product_name, quantity, unit, status
+        const demand = await client.query(`SELECT id, shop_owner_id, product_name, quantity, unit, status,
+              target_supplier_id
        FROM demands WHERE id = $1 FOR UPDATE`, [demandId]);
         const demandRow = demand.rows[0];
         if (!demandRow)
@@ -59,6 +61,11 @@ export async function acceptDemand(demandId, supplierId, businessName) {
         // 'open' is the canonical open status; 'pending' kept for legacy rows
         if (demandRow.status !== 'open' && demandRow.status !== 'pending') {
             throw httpError(`Demand already ${demandRow.status}`, 409);
+        }
+        // Targeted requests (chatbot / marketplace) are exclusive to their target
+        if (demandRow.target_supplier_id &&
+            demandRow.target_supplier_id !== supplierId) {
+            throw httpError('This request was sent to another supplier', 403);
         }
         await client.query(`UPDATE demands
        SET status = 'accepted', accepted_supplier_id = $1, accepted_at = now()
@@ -121,6 +128,23 @@ export async function declineDemand(demandId) {
     ]);
     return { demandId, message: 'Demand declined' };
 }
+/** Shop owner cancels their own demand. */
+export async function cancelDemand(demandId, shopOwnerId) {
+    const demand = await db.query(`SELECT id, status, shop_owner_id FROM demands WHERE id = $1`, [demandId]);
+    const row = demand.rows[0];
+    if (!row)
+        throw httpError('Demand not found', 404);
+    if (row.shop_owner_id !== shopOwnerId) {
+        throw httpError('You can only cancel your own demands', 403);
+    }
+    if (row.status !== 'open' && row.status !== 'pending') {
+        throw httpError(`Demand already ${row.status}`, 409);
+    }
+    await db.query(`UPDATE demands SET status = 'cancelled' WHERE id = $1`, [
+        demandId,
+    ]);
+    return { demandId, message: 'Demand cancelled successfully' };
+}
 /**
  * Supplier (deliveryman) confirms the order for delivery:
  *   1. lock + validate the order belongs to this supplier and is 'accepted'
@@ -159,13 +183,21 @@ export async function confirmDelivery(orderId, supplierId) {
                      is_verified = false,
                      expires_at = now() + interval '24 hours'`, [orderId, otp]);
         await client.query(`UPDATE orders SET status = 'in_transit' WHERE id = $1`, [orderId]);
+        // Notify shop owner with OTP
         await client.query(`INSERT INTO notifications (user_id, title, subtitle, type)
        VALUES ($1, $2, $3, 'delivery_otp')`, [
             orderRow.shop_owner_id,
             'Your delivery OTP',
             `Share this OTP with the deliveryman to receive ${orderRow.product_name}: ${otp}`,
         ]);
+        // Fetch user phone number for SMS
+        const userQuery = await client.query(`SELECT phone_number, business_name FROM users WHERE id = $1`, [orderRow.shop_owner_id]);
         await client.query('COMMIT');
+        // Send SMS asynchronously after commit
+        if (userQuery.rows.length > 0) {
+            const phone = userQuery.rows[0].phone_number;
+            sendSms(phone, `TradeLink: Your delivery OTP is ${otp} for order ${orderRow.product_name}. Share this 6-digit code with the delivery person.`);
+        }
         return {
             orderId,
             status: 'in_transit',
