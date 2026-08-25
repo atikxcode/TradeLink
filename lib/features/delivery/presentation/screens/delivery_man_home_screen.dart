@@ -11,7 +11,7 @@ import '../../../../core/services/api_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import 'delivery_request_details_screen.dart';
-import 'qr_scanner_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class DeliveryManHomeScreen extends StatefulWidget {
   const DeliveryManHomeScreen({Key? key}) : super(key: key);
@@ -215,18 +215,12 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.pop(ctx);
-                final scannedOtp = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const QRScannerScreen()),
-                );
-                if (scannedOtp != null && scannedOtp.isNotEmpty) {
-                  _processOtp(orderId, scannedOtp, isQrScan: true);
-                }
+                _showQrCodeModal(orderId);
               },
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Scan QR Code'),
+              icon: const Icon(Icons.qr_code),
+              label: const Text('Show QR Code'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryTeal,
                 side: const BorderSide(color: AppColors.primaryTeal),
@@ -236,6 +230,43 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showQrCodeModal(String orderId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Show this to Shop Owner', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+            SizedBox(
+              width: 200.0,
+              height: 200.0,
+              child: QrImageView(
+                data: orderId,
+                version: QrVersions.auto,
+                size: 200.0,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('The shop owner will scan this QR code with their app to confirm the delivery.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ],
+        ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _fetchMyDeliveries(); // Refresh to check if delivery was confirmed
+            },
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -254,9 +285,11 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: const Text('Enter OTP'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               const Text(
                 'An OTP has been sent to the shop owner. Please enter it below to confirm delivery.',
                 style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
@@ -275,6 +308,7 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
                 ),
               ),
             ],
+          ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),

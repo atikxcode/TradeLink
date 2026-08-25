@@ -8,6 +8,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'features/auth/presentation/screens/shop_owner_home_screen.dart';
 import 'features/auth/presentation/screens/stockholder_home_screen.dart';
+import 'features/delivery/presentation/screens/delivery_man_home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
@@ -65,6 +66,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (role == 'shop_owner') {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const ShopOwnerHomeScreen()),
+        );
+      } else if (role == 'delivery_man') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DeliveryManHomeScreen()),
         );
       } else {
         Navigator.of(context).pushReplacement(

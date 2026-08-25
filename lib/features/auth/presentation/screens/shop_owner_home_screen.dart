@@ -71,6 +71,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   }
 
   late final List<Widget> _tabs;
+  final GlobalKey<_ShopOwnerDashboardState> _dashboardKey = GlobalKey<_ShopOwnerDashboardState>();
 
   @override
   void initState() {
@@ -79,6 +80,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     _fetchUnreadCount();
     _tabs = [
       ShopOwnerDashboard(
+        key: _dashboardKey,
         onNavigateToPost: () => setState(() => _currentIndex = 2),
       ),
       const OrdersScreen(),
@@ -86,7 +88,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
         isTab: true,
         onPostSuccess: () {
           setState(() => _currentIndex = 0);
-          // Optional: refresh dashboard data if needed
+          _dashboardKey.currentState?._fetchDashboardData();
         },
       ),
       ConversationsScreen(
