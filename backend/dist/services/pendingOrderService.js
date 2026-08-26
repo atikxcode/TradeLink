@@ -12,6 +12,7 @@ function mapPendingOrderRow(row) {
         deliveryLocation: row.delivery_location,
         shopOwnerName: row.shop_owner_name,
         shopOwnerPhone: row.shop_owner_phone,
+        deliveryManId: row.delivery_man_id ?? null,
     };
 }
 /**
@@ -31,7 +32,8 @@ export async function getPendingOrders(stockholderId) {
        o.total_amount,
        COALESCE(o.delivery_address, '')           AS delivery_location,
        COALESCE(u.full_name, 'Unknown')           AS shop_owner_name,
-       COALESCE(u.phone_number, '')               AS shop_owner_phone
+       COALESCE(u.phone_number, '')               AS shop_owner_phone,
+       o.delivery_man_id                          AS delivery_man_id
      FROM public.orders o
      JOIN public.users u ON o.shop_owner_id = u.id
      WHERE o.supplier_id = $1

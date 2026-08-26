@@ -17,7 +17,7 @@ import { assistantChatHandler, placeChatbotOrderHandler } from '../controllers/a
 import { startChatHandler, getUserChatsHandler, getChatMessagesHandler, sendChatMessageHandler, } from '../controllers/chatController.js';
 import { initiateNegotiationHandler, getShopOwnerNegotiationsHandler, getSupplierNegotiationsHandler, counterNegotiationHandler, respondToNegotiationHandler, sendNegotiationMessageHandler, getNegotiationMessagesHandler, getSupplierNegotiationsByIdHandler, finalizeNegotiationHandler, } from '../controllers/negotiationController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
-import { acceptRequestHandler, getDeliveryManOrdersHandler, getNearbyRequestsHandler, markOrderDeliveredHandler, registerDeliveryManHandler, requestRiderHandler, sendDeliveryOtpHandler, notifyArrivalHandler, shopOwnerConfirmDeliveryHandler, pickupOrderHandler, } from '../controllers/deliveryController.js';
+import { acceptRequestHandler, getDeliveryManOrdersHandler, getNearbyRequestsHandler, markOrderDeliveredHandler, registerDeliveryManHandler, requestRiderHandler, cancelRiderRequestHandler, sendDeliveryOtpHandler, notifyArrivalHandler, shopOwnerConfirmDeliveryHandler, pickupOrderHandler, } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
 // Configure multer for image uploads.
@@ -79,6 +79,7 @@ router.post('/orders/:id/verify-delivery', requireSupplier, verifyDeliveryHandle
 // ---- Delivery Men endpoints ----
 router.post('/delivery/register', registerDeliveryManHandler); // Public registration
 router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
+router.patch('/orders/:id/cancel-rider-request', requireSupplier, cancelRiderRequestHandler);
 router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
 router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
 router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man

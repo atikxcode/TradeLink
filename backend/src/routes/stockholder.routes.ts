@@ -68,6 +68,7 @@ import {
   markOrderDeliveredHandler,
   registerDeliveryManHandler,
   requestRiderHandler,
+  cancelRiderRequestHandler,
   sendDeliveryOtpHandler,
   notifyArrivalHandler,
   shopOwnerConfirmDeliveryHandler,
@@ -150,6 +151,7 @@ router.post('/orders/:id/verify-delivery', requireSupplier, verifyDeliveryHandle
 // ---- Delivery Men endpoints ----
 router.post('/delivery/register', registerDeliveryManHandler); // Public registration
 router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
+router.patch('/orders/:id/cancel-rider-request', requireSupplier, cancelRiderRequestHandler);
 router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
 router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
 router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man

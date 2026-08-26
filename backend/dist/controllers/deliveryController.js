@@ -43,7 +43,7 @@ export async function requestRiderHandler(req, res) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
         await db.query(`UPDATE public.orders 
-       SET status = 'searching_for_rider'
+       SET status = 'searching_for_rider', updated_at = now()
        WHERE id = $1`, [orderId]);
         res.status(200).json({ success: true, message: 'Broadcasted delivery request to nearby riders' });
     }
@@ -53,20 +53,83 @@ export async function requestRiderHandler(req, res) {
     }
 }
 /**
+ * Supplier cancels a rider request — reverts searching_for_rider -> accepted
+ */
+export async function cancelRiderRequestHandler(req, res) {
+    try {
+        const supplierId = req.userId;
+        const { id: orderId } = req.params;
+        const orderCheck = await db.query(`SELECT id, status FROM public.orders WHERE id = $1 AND supplier_id = $2`, [orderId, supplierId]);
+        if (orderCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+        if (orderCheck.rows[0].status !== 'searching_for_rider') {
+            return res.status(400).json({ success: false, error: 'Order is not in searching_for_rider status' });
+        }
+        await db.query(`UPDATE public.orders
+       SET status = 'accepted', delivery_man_id = NULL, updated_at = now()
+       WHERE id = $1`, [orderId]);
+        res.status(200).json({ success: true, message: 'Rider request cancelled' });
+    }
+    catch (error) {
+        console.error('Error cancelling rider request:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+}
+/**
  * Delivery Man lists available broadcasted requests (searching_for_rider)
+ * Filtered by 10 km Haversine radius from the rider's saved location.
  */
 export async function getNearbyRequestsHandler(req, res) {
     try {
-        const result = await db.query(`SELECT o.id, o.quantity, o.unit, o.total_amount, o.status, o.created_at,
-              o.delivery_address, o.delivery_lat, o.delivery_lng, o.product_name,
-              u.full_name AS shop_owner_name, u.phone_number AS shop_owner_phone,
-              s.full_name AS supplier_name, s.phone_number AS supplier_phone,
-              s.latitude AS supplier_lat, s.longitude AS supplier_lng
-       FROM public.orders o
-       JOIN public.users u ON o.shop_owner_id = u.id
-       JOIN public.users s ON o.supplier_id = s.id
-       WHERE o.status = 'searching_for_rider'
-       ORDER BY o.created_at DESC`);
+        const riderId = req.userId;
+        // Fetch rider's saved base location
+        const riderRes = await db.query(`SELECT latitude, longitude FROM public.users WHERE id = $1`, [riderId]);
+        const rider = riderRes.rows[0];
+        const rLat = rider?.latitude;
+        const rLng = rider?.longitude;
+        let result;
+        if (rLat != null && rLng != null) {
+            result = await db.query(`SELECT o.id, o.quantity, o.unit, o.total_amount, o.status, o.created_at,
+                o.delivery_address, o.delivery_lat, o.delivery_lng, o.product_name,
+                u.full_name AS shop_owner_name, u.phone_number AS shop_owner_phone,
+                s.full_name AS supplier_name, s.phone_number AS supplier_phone,
+                s.latitude AS supplier_lat, s.longitude AS supplier_lng,
+                ROUND(CAST(
+                  6371 * ACOS(GREATEST(-1, LEAST(1,
+                    COS(RADIANS($1)) * COS(RADIANS(s.latitude))
+                    * COS(RADIANS(s.longitude) - RADIANS($2))
+                    + SIN(RADIANS($1)) * SIN(RADIANS(s.latitude))
+                  ))
+                ) AS numeric), 2) AS distance_km
+         FROM public.orders o
+         JOIN public.users u ON o.shop_owner_id = u.id
+         JOIN public.users s ON o.supplier_id = s.id
+         WHERE o.status = 'searching_for_rider'
+           AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL
+           AND (
+             6371 * ACOS(GREATEST(-1, LEAST(1,
+               COS(RADIANS($1)) * COS(RADIANS(s.latitude))
+               * COS(RADIANS(s.longitude) - RADIANS($2))
+               + SIN(RADIANS($1)) * SIN(RADIANS(s.latitude))
+             )))
+           ) <= 10
+         ORDER BY distance_km ASC, o.created_at DESC`, [rLat, rLng]);
+        }
+        else {
+            // Rider has no saved location — return all (fallback)
+            result = await db.query(`SELECT o.id, o.quantity, o.unit, o.total_amount, o.status, o.created_at,
+                o.delivery_address, o.delivery_lat, o.delivery_lng, o.product_name,
+                u.full_name AS shop_owner_name, u.phone_number AS shop_owner_phone,
+                s.full_name AS supplier_name, s.phone_number AS supplier_phone,
+                s.latitude AS supplier_lat, s.longitude AS supplier_lng,
+                NULL AS distance_km
+         FROM public.orders o
+         JOIN public.users u ON o.shop_owner_id = u.id
+         JOIN public.users s ON o.supplier_id = s.id
+         WHERE o.status = 'searching_for_rider'
+         ORDER BY o.created_at DESC`);
+        }
         res.status(200).json({ success: true, data: result.rows });
     }
     catch (error) {

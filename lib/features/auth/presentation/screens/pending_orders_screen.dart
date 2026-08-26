@@ -150,6 +150,23 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     }
   }
 
+  Future<void> _cancelRiderRequest(String orderId) async {
+    if (_isActionInProgress) return;
+    setState(() => _isActionInProgress = true);
+    final result = await _patchAction('/orders/$orderId/cancel-rider-request');
+    if (mounted) {
+      setState(() => _isActionInProgress = false);
+      final isError = result == null || result.startsWith('Invalid') || result.startsWith('Network') || result.startsWith('Failed');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isError ? (result ?? 'Failed to cancel') : 'Rider request cancelled'),
+          backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        ),
+      );
+      _fetchPendingOrders();
+    }
+  }
+
   Future<void> _verifyDelivery(String orderId) async {
     final otpController = TextEditingController();
 
@@ -454,6 +471,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
                             onDecline: () => _declineOrder(order['orderId'] ?? ''),
                             onOutForDelivery: () => _markOutOfDelivery(order['orderId'] ?? ''),
                             onAssignDelivery: () => _requestRider(order['orderId'] ?? ''),
+                            onCancelRiderRequest: () => _cancelRiderRequest(order['orderId'] ?? ''),
                             onTrackRider: order['delivery_man_id'] != null 
                               ? () {
                                   Navigator.push(
@@ -651,6 +669,7 @@ class _SupplierOrderCard extends StatelessWidget {
   final VoidCallback onDecline;
   final VoidCallback onOutForDelivery;
   final VoidCallback? onAssignDelivery;
+  final VoidCallback? onCancelRiderRequest;
   final VoidCallback? onTrackRider;
 
   const _SupplierOrderCard({
@@ -670,6 +689,7 @@ class _SupplierOrderCard extends StatelessWidget {
     required this.onDecline,
     required this.onOutForDelivery,
     this.onAssignDelivery,
+    this.onCancelRiderRequest,
     this.onTrackRider,
   });
 
@@ -969,6 +989,21 @@ class _SupplierOrderCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: isActionInProgress ? null : onCancelRiderRequest,
+                  icon: const Icon(Icons.cancel_outlined, size: 18),
+                  label: const Text('Cancel Rider Request'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFEF4444),
+                    side: const BorderSide(color: Color(0xFFFECACA), width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
             ] else if (orderStatus == 'out_for_delivery') ...[
