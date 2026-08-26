@@ -414,7 +414,7 @@ export async function shopOwnerConfirmDeliveryHandler(req: AuthRequest, res: Res
     const { id: orderId } = req.params;
 
     const orderCheck = await db.query(
-      `SELECT id, supplier_id, delivery_man_id, status FROM public.orders WHERE id = $1 AND shop_owner_id = $2`,
+      `SELECT id, supplier_id, delivery_man_id, status, product_name FROM public.orders WHERE id = $1 AND shop_owner_id = $2`,
       [orderId, shopOwnerId]
     );
 
@@ -429,9 +429,18 @@ export async function shopOwnerConfirmDeliveryHandler(req: AuthRequest, res: Res
     }
 
     await db.query(
-      `UPDATE public.orders SET status = 'delivered' WHERE id = $1`,
+      `UPDATE public.orders SET status = 'delivered', updated_at = now() WHERE id = $1`,
       [orderId]
     );
+
+    // Look up inventory_id for review metadata
+    const invResult = await db.query(
+      `SELECT id FROM public.stockholder_inventory
+       WHERE stockholder_id = $1 AND LOWER(custom_product_name) = LOWER($2)
+       LIMIT 1`,
+      [order.supplier_id, order.product_name]
+    );
+    const inventoryId = invResult.rows.length > 0 ? invResult.rows[0].id : '';
 
     // Notify Supplier
     await db.query(
@@ -439,7 +448,7 @@ export async function shopOwnerConfirmDeliveryHandler(req: AuthRequest, res: Res
        VALUES ($1, 'Order Delivered', 'Your delivery man has successfully delivered the order (confirmed by shop owner).', 'order_update')`,
       [order.supplier_id]
     );
-    
+
     // Notify Delivery Man
     if (order.delivery_man_id) {
       await db.query(
@@ -448,6 +457,17 @@ export async function shopOwnerConfirmDeliveryHandler(req: AuthRequest, res: Res
         [order.delivery_man_id]
       );
     }
+
+    // Notification for shop owner with review metadata
+    await db.query(
+      `INSERT INTO public.notifications (user_id, title, subtitle, type)
+       VALUES ($1, $2, $3, 'delivery_confirmed')`,
+      [
+        shopOwnerId,
+        'Order Delivered!',
+        `Your order for ${order.product_name} is complete. Tap to leave an optional review.\n|||${orderId}|||${order.supplier_id}|||${inventoryId}`,
+      ]
+    );
 
     res.status(200).json({ success: true, message: 'Delivery confirmed successfully' });
   } catch (error) {
