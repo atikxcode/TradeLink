@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { publishStock, listStockHandler, updateStockHandler, deleteStockHandler } from '../controllers/stockController.js';
 import { getHomeStatsHandler } from '../controllers/homeStatsController.js';
-import { acceptDemandHandler, declineDemandHandler, } from '../controllers/demandController.js';
+import { acceptDemandHandler, declineDemandHandler, cancelDemandHandler, } from '../controllers/demandController.js';
 import { getNotificationsHandler, getUnreadCountHandler, markOneReadHandler, markReadHandler, } from '../controllers/notificationController.js';
 import { submitReviewHandler, getSupplierRatingHandler, getInventoryRatingHandler, listInventoryReviewsHandler, resolveOrderHandler, } from '../controllers/reviewController.js';
 import { listMasterProductsHandler, searchInventoryHandler, getCheapestSuppliersHandler, } from '../controllers/masterProductController.js';
@@ -18,18 +17,13 @@ import { assistantChatHandler, placeChatbotOrderHandler } from '../controllers/a
 import { startChatHandler, getUserChatsHandler, getChatMessagesHandler, sendChatMessageHandler, } from '../controllers/chatController.js';
 import { initiateNegotiationHandler, getShopOwnerNegotiationsHandler, getSupplierNegotiationsHandler, counterNegotiationHandler, respondToNegotiationHandler, sendNegotiationMessageHandler, getNegotiationMessagesHandler, getSupplierNegotiationsByIdHandler, finalizeNegotiationHandler, } from '../controllers/negotiationController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
+import { acceptRequestHandler, getDeliveryManOrdersHandler, getNearbyRequestsHandler, markOrderDeliveredHandler, registerDeliveryManHandler, requestRiderHandler, cancelRiderRequestHandler, sendDeliveryOtpHandler, notifyArrivalHandler, shopOwnerConfirmDeliveryHandler, pickupOrderHandler, } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(process.cwd(), 'uploads'));
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-        cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
-    },
-});
+// Configure multer for image uploads.
+// memoryStorage: bytes go into Postgres (stock_images) so they survive
+// Render restarts — the old diskStorage target (/uploads) is ephemeral.
+const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
     const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (allowedMimes.includes(file.mimetype)) {
@@ -68,6 +62,7 @@ router.patch('/suppliers/stock/:id', requireSupplier, updateStockHandler);
 router.delete('/suppliers/stock/:id', requireSupplier, deleteStockHandler);
 router.get('/suppliers/home-stats', requireSupplier, getHomeStatsHandler);
 // ---- Demand endpoints ----
+router.patch('/demands/:id/cancel', cancelDemandHandler);
 router.post('/demands/:id/accept', requireSupplier, acceptDemandHandler);
 router.post('/demands/:id/decline', requireSupplier, declineDemandHandler);
 // ---- Order / delivery endpoints ----
@@ -81,6 +76,18 @@ router.post('/orders/:id/accept', requireSupplier, acceptOrderHandler);
 router.post('/orders/:id/decline', requireSupplier, declineOrderHandler);
 router.post('/orders/:id/out-for-delivery', requireSupplier, markOutOfDeliveryHandler);
 router.post('/orders/:id/verify-delivery', requireSupplier, verifyDeliveryHandler);
+// ---- Delivery Men endpoints ----
+router.post('/delivery/register', registerDeliveryManHandler); // Public registration
+router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
+router.patch('/orders/:id/cancel-rider-request', requireSupplier, cancelRiderRequestHandler);
+router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
+router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
+router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man
+router.patch('/delivery/orders/:id/pickup', pickupOrderHandler); // authenticated as delivery_man
+router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
+router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
+router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man
+router.post('/orders/:id/confirm-delivery', shopOwnerConfirmDeliveryHandler); // authenticated as shop_owner
 // ---- Notifications ----
 router.get('/notifications', getNotificationsHandler);
 router.get('/notifications/unread-count', getUnreadCountHandler);

@@ -96,4 +96,20 @@ export async function deleteStock(userId, stockId) {
      WHERE id = $1 AND stockholder_id = $2`, [stockId, userId]);
     return (rowCount ?? 0) > 0;
 }
+// ── Persistent image storage (DB-backed, survives Render restarts) ──
+export async function saveStockImage(stockId, mimeType, data) {
+    await db.query(`INSERT INTO stock_images (stock_id, mime_type, data, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (stock_id)
+     DO UPDATE SET mime_type = EXCLUDED.mime_type,
+                   data = EXCLUDED.data,
+                   updated_at = now()`, [stockId, mimeType, data]);
+}
+export async function getStockImage(stockId) {
+    const { rows } = await db.query(`SELECT mime_type, data FROM stock_images WHERE stock_id = $1`, [stockId]);
+    const row = rows[0];
+    if (!row)
+        return null;
+    return { mimeType: row.mime_type, data: row.data };
+}
 //# sourceMappingURL=stockService.js.map

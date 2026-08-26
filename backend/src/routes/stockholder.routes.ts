@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
 import { publishStock, listStockHandler, updateStockHandler, deleteStockHandler } from '../controllers/stockController.js';
 import { getHomeStatsHandler } from '../controllers/homeStatsController.js';
 import {
@@ -75,23 +74,19 @@ import {
   markOrderDeliveredHandler,
   registerDeliveryManHandler,
   requestRiderHandler,
+  cancelRiderRequestHandler,
   sendDeliveryOtpHandler,
   notifyArrivalHandler,
   shopOwnerConfirmDeliveryHandler,
+  pickupOrderHandler,
 } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(process.cwd(), 'uploads'));
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    cb(null, `${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
-});
+// Configure multer for image uploads.
+// memoryStorage: bytes go into Postgres (stock_images) so they survive
+// Render restarts — the old diskStorage target (/uploads) is ephemeral.
+const storage = multer.memoryStorage();
 
 const fileFilter = (
   req: Express.Request,
@@ -163,9 +158,11 @@ router.post('/orders/:id/verify-delivery', requireSupplier, verifyDeliveryHandle
 // ---- Delivery Men endpoints ----
 router.post('/delivery/register', registerDeliveryManHandler); // Public registration
 router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
+router.patch('/orders/:id/cancel-rider-request', requireSupplier, cancelRiderRequestHandler);
 router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
 router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
 router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man
+router.patch('/delivery/orders/:id/pickup', pickupOrderHandler); // authenticated as delivery_man
 router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
 router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
 router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man

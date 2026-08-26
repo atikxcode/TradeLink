@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { db } from '../db/pool.js';
+import { sendSms } from './smsService.js';
 function httpError(message, status) {
     const error = new Error(message);
     error.status = status;
@@ -47,6 +48,31 @@ export async function acceptOrder(orderId, supplierId) {
             throw httpError(`Order is already ${order.status}`, 409);
         }
         await client.query(`UPDATE orders SET status = 'accepted', updated_at = now() WHERE id = $1`, [orderId]);
+        // Deduct stock on acceptance
+        const { rows: orderDetail } = await client.query(`SELECT product_name, quantity, supplier_id, inventory_id FROM orders WHERE id = $1`, [orderId]);
+        if (orderDetail[0]) {
+            const od = orderDetail[0];
+            // Try by inventory_id first, fall back to name match
+            const invRows = await client.query(`SELECT COALESCE(
+           (SELECT o.inventory_id FROM orders o WHERE o.id = $1),
+           (SELECT si.id FROM public.stockholder_inventory si
+            WHERE si.stockholder_id = $2
+              AND LOWER(si.custom_product_name) = LOWER($3)
+            LIMIT 1)
+         ) AS id`, [orderId, od.supplier_id, od.product_name]);
+            const linkedInventoryId = invRows.rows[0]?.id;
+            if (linkedInventoryId) {
+                await client.query(`UPDATE public.stockholder_inventory
+           SET quantity_available = GREATEST(0, quantity_available - $1),
+               is_available = CASE WHEN (quantity_available - $1) <= 0 THEN false ELSE is_available END
+           WHERE id = $2`, [od.quantity, linkedInventoryId]);
+                if (!od.inventory_id) {
+                    await client.query(`UPDATE orders SET inventory_id = $1 WHERE id = $2`, [
+                        linkedInventoryId, orderId,
+                    ]);
+                }
+            }
+        }
         // Notify shop owner
         await client.query(`INSERT INTO notifications (user_id, title, subtitle, type)
        VALUES ($1, $2, $3, 'order_accepted')`, [
@@ -154,7 +180,14 @@ export async function markOutOfDelivery(orderId, supplierId) {
             'Order Out for Delivery!',
             `Your delivery OTP is ${otp}. Share this 6-digit code with the delivery person upon arrival.`,
         ]);
+        // Fetch user phone number for SMS
+        const userQuery = await client.query(`SELECT phone_number, business_name FROM users WHERE id = $1`, [order.shop_owner_id]);
         await client.query('COMMIT');
+        // Send SMS asynchronously after commit
+        if (userQuery.rows.length > 0) {
+            const phone = userQuery.rows[0].phone_number;
+            sendSms(phone, `TradeLink: Your delivery OTP is ${otp} for order ${order.product_name}. Share this 6-digit code with the delivery person.`);
+        }
         const { rows: updated } = await client.query(`SELECT * FROM orders WHERE id = $1`, [orderId]);
         return {
             order: mapOrderRow(updated[0]),

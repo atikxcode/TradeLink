@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import '../../models/marketplace_product_model.dart';
@@ -127,7 +126,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(modalContext);
-                        _postCustomDemand(); // API call after explicit confirmation
+                        _placeOrder();
                       },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -265,7 +264,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  Future<void> _postCustomDemand() async {
+  Future<void> _placeOrder() async {
     final quantityText = _quantityController.text.trim();
     if (quantityText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -286,46 +285,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('user_id');
+      final deliveryAddress = prefs.getString('user_address') ?? '';
 
-      if (userId == null || userId.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('User not authenticated'), backgroundColor: Colors.red),
-          );
-          setState(() => _isOrdering = false);
-        }
-        return;
-      }
-
-      final address = prefs.getString('user_address') ?? '';
-
-      await SupabaseConfig.client.from('demands').insert({
-        'shop_owner_id': userId,
-        'product_name': product.productName,
-        'category': product.category,
+      final result = await ApiService.post('/orders/direct', body: {
+        'stockId': product.stockId,
         'quantity': quantity,
-        'unit': product.unit,
-        'target_price': product.pricePerUnit,
-        'notes': 'Interested in ordering from ${product.supplierName}',
-        'status': 'open',
-        'latitude': widget.shopLat,
-        'longitude': widget.shopLng,
-        'delivery_address': address,
+        'deliveryAddress': deliveryAddress,
       });
 
       if (mounted) {
         setState(() => _isOrdering = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Demand posted! Suppliers will be notified.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context);
+        if (result != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Order placed successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to place order'), backgroundColor: Colors.red),
+          );
+        }
       }
     } catch (e) {
-      debugPrint('[ProductDetail] Error posting demand: $e');
+      debugPrint('[ProductDetail] Error placing order: $e');
       if (mounted) {
         setState(() => _isOrdering = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -646,7 +631,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                         )
                       : Text(
-                          product.inStock ? 'Place Demand' : 'Out of Stock',
+                          product.inStock ? 'Place Order' : 'Out of Stock',
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                         ),
                 ),

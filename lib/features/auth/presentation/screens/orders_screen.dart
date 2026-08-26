@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../delivery/presentation/screens/qr_scanner_screen.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../marketplace/presentation/screens/order_chat_screen.dart';
@@ -54,56 +54,39 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  Future<void> _handleScanQr(String orderId) async {
-    final scannedOrderId = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
-    );
-    
-    if (scannedOrderId != null && scannedOrderId.isNotEmpty) {
-      if (scannedOrderId != orderId) {
-         if (!mounted) return;
-         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-           content: Text('Scanned QR code does not match this order.'),
-           backgroundColor: AppColors.cancelled,
-         ));
-         return;
-      }
-      
-      setState(() => _isLoading = true);
-      try {
-        final res = await ApiService.post('/orders/$orderId/confirm-delivery', body: {});
-        if (mounted) {
-          if (res != null) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Delivery confirmed successfully!'),
-              backgroundColor: AppColors.primaryTeal,
-            ));
-            _fetchOrders();
-          } else {
-            setState(() => _isLoading = false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Failed to confirm delivery.'),
-              backgroundColor: AppColors.cancelled,
-            ));
-          }
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.cancelled,
-          ));
-        }
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: _isLoading
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'My Orders',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            if (!_isLoading)
+              Text(
+                '${_orders.length} order${_orders.length == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+          ],
+        ),
+      ),
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F5C4F)))
           : RefreshIndicator(
               onRefresh: _fetchOrders,
@@ -111,15 +94,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 children: [
-                  const Text(
-                    'My Orders',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   if (_orders.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(32),
@@ -144,7 +118,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           deliveryOtp: order['deliveryOtp'],
                           deliveryAddress: order['deliveryAddress'],
                           orderTime: order['orderTime'] ?? '',
-                          onScanQr: () => _handleScanQr(order['orderId'] ?? ''),
                         )),
                 ],
               ),
@@ -164,7 +137,6 @@ class _ShopOwnerOrderCard extends StatelessWidget {
   final String? deliveryOtp;
   final String? deliveryAddress;
   final String orderTime;
-  final VoidCallback? onScanQr;
 
   const _ShopOwnerOrderCard({
     required this.orderId,
@@ -177,7 +149,6 @@ class _ShopOwnerOrderCard extends StatelessWidget {
     this.deliveryOtp,
     this.deliveryAddress,
     required this.orderTime,
-    this.onScanQr,
   });
 
   Color get _statusColor {
@@ -228,6 +199,19 @@ class _ShopOwnerOrderCard extends StatelessWidget {
     }
   }
 
+  String get _qtyLabel {
+    if (quantity is num) {
+      final q = quantity as num;
+      return q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(1);
+    }
+    return '$quantity';
+  }
+
+  String get _totalLabel {
+    if (totalAmount is num) return '৳${(totalAmount as num).toStringAsFixed(2)}';
+    return '৳$totalAmount';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -246,7 +230,7 @@ class _ShopOwnerOrderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '$productName (${quantity.toStringAsFixed(0)} $unit)',
+                  '$productName ($_qtyLabel $unit)',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -274,7 +258,7 @@ class _ShopOwnerOrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            totalAmount is num ? 'Total: ৳${(totalAmount as num).toStringAsFixed(2)}' : 'Total: ৳$totalAmount',
+            'Total: $_totalLabel',
             style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 4),
@@ -338,21 +322,29 @@ class _ShopOwnerOrderCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: onScanQr,
-                      icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text('Scan Delivery QR'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD97706),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFF59E0B)),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Scan the QR code on the delivery person\'s phone to confirm delivery.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                      child: Column(
+                        children: [
+                          QrImageView(
+                            data: deliveryOtp!,
+                            size: 140,
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0F172A),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Show this QR code to the delivery person to confirm delivery.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
+                          ),
+                        ],
+                      ),
                     ),
                   ] else ...[
                     const Text(

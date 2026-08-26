@@ -29,7 +29,7 @@ export function classifyIntent(message: string): ChatIntent {
 
 export interface AssistantIntent {
   productName: string | null;
-  sortBy: 'price' | 'distance' | 'rating';
+  sortBy: 'price' | 'price_desc' | 'distance' | 'rating' | 'rating_asc';
   maxDistance: number;
   minRating: number;
   category: string | null;
@@ -70,6 +70,11 @@ const SORT_KEYWORDS: Record<string, AssistantIntent['sortBy']> = {
   rated: 'rating',
   'best rated': 'rating',
   top: 'rating',
+  'top rated': 'rating',
+  'highest rated': 'rating',
+  'lowest rated': 'rating_asc',
+  'worst rated': 'rating_asc',
+  'low rating': 'rating_asc',
 };
 
 const CATEGORY_KEYWORDS: Record<string, string> = {
@@ -114,16 +119,25 @@ export interface MultiItemEntry {
  */
 export function parseMultiItemOrder(message: string): MultiItemEntry[] | null {
   if (!message.includes('=')) return null;
-  const entries: MultiItemEntry[] = [];
-  for (const part of message.split(',')) {
-    const [rawName, rawQty] = part.split('=');
-    const name = (rawName ?? '').trim().toLowerCase();
-    const quantity = parseFloat((rawQty ?? '').trim());
-    if (!name || !Number.isFinite(quantity) || quantity <= 0) return null;
-    entries.push({ name, quantity });
+    const entries: MultiItemEntry[] = [];
+    for (const part of message.split(',')) {
+      const [rawName, rawQty] = part.split('=');
+      // Strip action verbs so "order oil=10" resolves to product "oil"
+      const name = (rawName ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(
+          /\b(order|buy|purchase|get|need|want|kino|kinbo|dorkar|lagbe|chaile|dao|deu)\b/g,
+          '',
+        )
+        .replace(/\s+/g, ' ')
+        .trim();
+      const quantity = parseFloat((rawQty ?? '').trim());
+      if (!name || !Number.isFinite(quantity) || quantity <= 0) return null;
+      entries.push({ name, quantity });
+    }
+    return entries.length > 0 ? entries : null;
   }
-  return entries.length > 0 ? entries : null;
-}
 
 // ── Natural / Banglish order parsing ──────────────────────────────
 // Supports flexible word orders:
@@ -460,6 +474,9 @@ export async function searchSuppliers(
     case 'rating':
       sql += ` ORDER BY rating DESC, distance_km ASC`;
       break;
+    case 'rating_asc':
+      sql += ` ORDER BY (COALESCE(si.review_count, 0) > 0) DESC, rating ASC, distance_km ASC`;
+      break;
   }
 
   sql += ` LIMIT 10`;
@@ -580,6 +597,8 @@ export function generateSearchResponse(
       return `Found ${results.length} supplier${results.length > 1 ? 's' : ''} for "${product}" nearby. Closest is ${best.supplierName} at ${best.distanceKm} km, priced at ৳${best.pricePerUnit}/${best.unit}.`;
     case 'rating':
       return `Found ${results.length} supplier${results.length > 1 ? 's' : ''} for "${product}". Top rated is ${best.supplierName} (${best.rating}★), ৳${best.pricePerUnit}/${best.unit}.`;
+    case 'rating_asc':
+      return `Found ${results.length} supplier${results.length > 1 ? 's' : ''} for "${product}". Lowest rated match is ${best.supplierName} (${best.rating}★), ৳${best.pricePerUnit}/${best.unit}.`;
     default:
       return `Found ${results.length} supplier${results.length > 1 ? 's' : ''} for "${product}". Best price is ৳${best.pricePerUnit}/${best.unit} at ${best.supplierName}, ${best.distanceKm} km away.`;
   }

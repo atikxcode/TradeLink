@@ -51,6 +51,10 @@ export async function updateProfile(userId, payload) {
         fields.push(`full_name = $${idx++}`);
         values.push(payload.fullName);
     }
+    if (payload.phoneNumber !== undefined) {
+        fields.push(`phone_number = $${idx++}`);
+        values.push(payload.phoneNumber);
+    }
     if (payload.businessName !== undefined) {
         fields.push(`business_name = $${idx++}`);
         values.push(payload.businessName);
@@ -89,13 +93,8 @@ export async function updateProfile(userId, payload) {
     if (fields.length === 0)
         return getProfile(userId);
     fields.push(`updated_at = now()`);
-    const { rows } = await db.query(`UPDATE users SET ${fields.join(', ')}
-     WHERE id = $${idx}
-     RETURNING id, role, full_name, phone_number, business_name, category,
-               trade_license, min_order_value, supply_radius,
-               latitude, longitude, address, created_at, updated_at`, [...values, userId]);
-    if (rows.length === 0)
-        return null;
-    return mapProfileRow(rows[0]);
+    await db.query(`UPDATE users SET ${fields.join(', ')}
+     WHERE id = $${idx}`, [...values, userId]);
+    return getProfile(userId);
 }
 //# sourceMappingURL=profileService.js.map

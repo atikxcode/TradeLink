@@ -2,7 +2,19 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { createStockSchema } from '../middleware/validation.js';
-import { createStock, listStock, updateStock, deleteStock } from '../services/stockService.js';
+import { createStock, listStock, updateStock, deleteStock, saveStockImage } from '../services/stockService.js';
+
+/** Persist uploaded bytes in Postgres and return a stable public URL. */
+async function storeImageAndBuildUrl(
+  req: AuthRequest,
+  stockId: string,
+  file: Express.Multer.File,
+): Promise<string> {
+  await saveStockImage(stockId, file.mimetype, file.buffer);
+  const host = req.get('host') || 'tradelink-2.onrender.com';
+  const baseUrl = `https://${host}`;
+  return `${baseUrl}/stock-images/${stockId}?v=${Date.now()}`;
+}
 
 export const publishStock = asyncHandler(async (req: AuthRequest, res: Response) => {
   const stockholderId = req.userId!;
@@ -37,20 +49,24 @@ export const publishStock = asyncHandler(async (req: AuthRequest, res: Response)
     payload.deliveryRadiusKm = Number(body.deliveryRadiusKm);
   }
 
-  // If image was uploaded, generate public URL
-  if (file) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    payload.imageUrl = `${baseUrl}/uploads/${file.filename}`;
-  } else if (body.imageUrl) {
+  // If image was uploaded, we'll store bytes and set URL after stock creation
+  // (need the stock id). Don't set a temporary URL here.
+  if (!file && body.imageUrl) {
     payload.imageUrl = String(body.imageUrl);
-  } else {
-    payload.imageUrl = undefined;
   }
 
   // Validate with zod
   const validatedPayload = createStockSchema.parse(payload);
 
   const stock = await createStock(stockholderId, validatedPayload);
+
+  // Store the image bytes in Postgres after we have the stock id
+  if (file) {
+    const imageUrl = await storeImageAndBuildUrl(req, stock.id, file);
+    await updateStock(stockholderId, stock.id, { imageUrl });
+    stock.imageUrl = imageUrl;
+  }
+
   res.status(201).json({ success: true, data: stock });
 });
 
@@ -83,10 +99,9 @@ export const updateStockHandler = asyncHandler(async (req: AuthRequest, res: Res
   if (body.unit !== undefined) payload.unit = String(body.unit);
   if (body.deliveryRadiusKm !== undefined) payload.deliveryRadiusKm = Number(body.deliveryRadiusKm);
 
-  // Handle image upload
+  // Handle image upload — bytes go to Postgres, not the ephemeral disk
   if (file) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    payload.imageUrl = `${baseUrl}/uploads/${file.filename}`;
+    payload.imageUrl = await storeImageAndBuildUrl(req, stockId, file);
   } else if (body.imageUrl !== undefined) {
     payload.imageUrl = String(body.imageUrl);
   }

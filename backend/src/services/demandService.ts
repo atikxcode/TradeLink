@@ -108,8 +108,10 @@ export async function acceptDemand(
       quantity: number;
       unit: string;
       status: string;
+      target_supplier_id: string | null;
     }>(
-      `SELECT id, shop_owner_id, product_name, quantity, unit, status
+      `SELECT id, shop_owner_id, product_name, quantity, unit, status,
+              target_supplier_id
        FROM demands WHERE id = $1 FOR UPDATE`,
       [demandId],
     );
@@ -119,6 +121,13 @@ export async function acceptDemand(
     // 'open' is the canonical open status; 'pending' kept for legacy rows
     if (demandRow.status !== 'open' && demandRow.status !== 'pending') {
       throw httpError(`Demand already ${demandRow.status}`, 409);
+    }
+    // Targeted requests (chatbot / marketplace) are exclusive to their target
+    if (
+      demandRow.target_supplier_id &&
+      demandRow.target_supplier_id !== supplierId
+    ) {
+      throw httpError('This request was sent to another supplier', 403);
     }
 
     await client.query(
