@@ -4,7 +4,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -28,21 +27,21 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
   String? _userId;
   String? _userName;
   LatLng? _currentLocation;
-  RealtimeChannel? _ordersChannel;
+  Timer? _feedPollTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initData();
-    _subscribeToOrders();
+    _startFeedPolling();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _locationTimer?.cancel();
-    _ordersChannel?.unsubscribe();
+    _feedPollTimer?.cancel();
     super.dispose();
   }
 
@@ -61,35 +60,13 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
     _startLocationUpdates();
   }
 
-  void _subscribeToOrders() {
-    _ordersChannel = SupabaseConfig.client
-        .channel('public:orders')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'orders',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'status',
-            value: 'searching_for_rider',
-          ),
-          callback: (payload) {
-            if (mounted && _currentIndex == 0) {
-              _fetchNearbyRequests();
-            }
-          },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'orders',
-          callback: (payload) {
-            if (mounted && _currentIndex == 1) {
-              _fetchMyDeliveries();
-            }
-          },
-        )
-        .subscribe();
+  void _startFeedPolling() {
+    _feedPollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        _fetchNearbyRequests(showLoading: false);
+        _fetchMyDeliveries(showLoading: false);
+      }
+    });
   }
 
   Future<void> _fetchData() async {
@@ -100,24 +77,24 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
     }
   }
 
-  Future<void> _fetchNearbyRequests() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchNearbyRequests({bool showLoading = true}) async {
+    if (showLoading) setState(() => _isLoading = true);
     final data = await ApiService.get('/delivery/requests');
     if (mounted) {
       setState(() {
         _nearbyRequests = data ?? [];
-        _isLoading = false;
+        if (showLoading) _isLoading = false;
       });
     }
   }
 
-  Future<void> _fetchMyDeliveries() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchMyDeliveries({bool showLoading = true}) async {
+    if (showLoading) setState(() => _isLoading = true);
     final data = await ApiService.get('/delivery/orders');
     if (mounted) {
       setState(() {
         _myDeliveries = data ?? [];
-        _isLoading = false;
+        if (showLoading) _isLoading = false;
       });
     }
   }

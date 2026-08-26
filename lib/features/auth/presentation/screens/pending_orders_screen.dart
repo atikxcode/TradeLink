@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/api_service.dart';
 import 'track_rider_screen.dart';
 import '../../../../core/config/api_config.dart';
@@ -36,7 +34,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
   List<Map<String, dynamic>> _completedOrders = [];
 
   late final TabController _tabController;
-  RealtimeChannel? _ordersChannel;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -44,42 +42,34 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     _tabController = TabController(length: 2, vsync: this);
     _fetchPendingOrders();
     _fetchCompletedOrders();
-    _subscribeToOrders();
+    _startPolling();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _ordersChannel?.unsubscribe();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  void _subscribeToOrders() {
-    _ordersChannel = SupabaseConfig.client
-        .channel('supplier-orders')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'orders',
-          callback: (payload) {
-            if (mounted) {
-              _fetchPendingOrders();
-              _fetchCompletedOrders();
-            }
-          },
-        )
-        .subscribe();
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        _fetchPendingOrders(showLoading: false);
+        _fetchCompletedOrders(showLoading: false);
+      }
+    });
   }
 
-  Future<void> _fetchPendingOrders() async {
-    if (mounted) setState(() { _isLoading = true; _error = null; });
+  Future<void> _fetchPendingOrders({bool showLoading = true}) async {
+    if (showLoading && mounted) setState(() { _isLoading = true; _error = null; });
     final data = await ApiService.get('/orders/pending');
     if (data != null && mounted) {
       setState(() {
         _orders = List<Map<String, dynamic>>.from(data);
         _isLoading = false;
       });
-    } else if (mounted) {
+    } else if (mounted && showLoading) {
       setState(() {
         _error = 'Failed to load orders. Pull to refresh.';
         _isLoading = false;
@@ -87,15 +77,15 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     }
   }
 
-  Future<void> _fetchCompletedOrders() async {
-    if (mounted) setState(() { _isLoadingCompleted = true; _errorCompleted = null; });
+  Future<void> _fetchCompletedOrders({bool showLoading = true}) async {
+    if (showLoading && mounted) setState(() { _isLoadingCompleted = true; _errorCompleted = null; });
     final data = await ApiService.get('/orders/completed');
     if (data != null && mounted) {
       setState(() {
         _completedOrders = List<Map<String, dynamic>>.from(data);
         _isLoadingCompleted = false;
       });
-    } else if (mounted) {
+    } else if (mounted && showLoading) {
       setState(() {
         _errorCompleted = 'Failed to load completed orders. Pull to refresh.';
         _isLoadingCompleted = false;
@@ -109,11 +99,10 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     final result = await _postAction('/orders/$orderId/accept');
     if (mounted) {
       setState(() => _isActionInProgress = false);
-      final isError = result == null || result.startsWith('Invalid') || result.startsWith('Network') || result.startsWith('Failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result ?? 'Action failed'),
-          backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+          content: Text(result ?? 'Failed to accept order'),
+          backgroundColor: result != null ? const Color(0xFF10B981) : const Color(0xFFEF4444),
         ),
       );
       _fetchPendingOrders();
