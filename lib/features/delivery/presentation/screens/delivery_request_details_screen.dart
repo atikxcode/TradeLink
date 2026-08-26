@@ -36,12 +36,33 @@ class DeliveryRequestDetailsScreen extends StatelessWidget {
     return distance.as(LengthUnit.Meter, p1, p2) / 1000.0;
   }
 
+  /// Try to extract lat/lng from an address string like "Selected Location (23.8194°, 90.4289°)"
+  LatLng? _parseCoordsFromAddress(String? address) {
+    if (address == null) return null;
+    final match = RegExp(r'\(([-\d.]+)[°,\s]+([-\d.]+)[°]?\)').firstMatch(address);
+    if (match != null) {
+      final lat = double.tryParse(match.group(1)!);
+      final lng = double.tryParse(match.group(2)!);
+      if (lat != null && lng != null) return LatLng(lat, lng);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final supplierLat = request['supplier_lat'] != null ? double.tryParse(request['supplier_lat'].toString()) : null;
     final supplierLng = request['supplier_lng'] != null ? double.tryParse(request['supplier_lng'].toString()) : null;
-    final deliveryLat = request['delivery_lat'] != null ? double.tryParse(request['delivery_lat'].toString()) : null;
-    final deliveryLng = request['delivery_lng'] != null ? double.tryParse(request['delivery_lng'].toString()) : null;
+    var deliveryLat = request['delivery_lat'] != null ? double.tryParse(request['delivery_lat'].toString()) : null;
+    var deliveryLng = request['delivery_lng'] != null ? double.tryParse(request['delivery_lng'].toString()) : null;
+
+    // Fallback: parse coordinates from delivery_address string
+    if (deliveryLat == null || deliveryLng == null) {
+      final parsed = _parseCoordsFromAddress(request['delivery_address']);
+      if (parsed != null) {
+        deliveryLat = parsed.latitude;
+        deliveryLng = parsed.longitude;
+      }
+    }
 
     LatLng? supplierLoc;
     if (supplierLat != null && supplierLng != null) supplierLoc = LatLng(supplierLat, supplierLng);

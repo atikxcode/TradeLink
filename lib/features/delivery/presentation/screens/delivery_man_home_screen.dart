@@ -931,6 +931,14 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (order['supplier_lat'] != null && order['supplier_lng'] != null)
+                        GestureDetector(
+                          onTap: () => _openMap(
+                            double.tryParse(order['supplier_lat'].toString()),
+                            double.tryParse(order['supplier_lng'].toString()),
+                          ),
+                          child: const Icon(Icons.map_outlined, size: 18, color: Color(0xFF2563EB)),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -959,6 +967,27 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
                           ],
                         ),
                       ),
+                      Builder(
+                        builder: (context) {
+                          var dLat = order['delivery_lat'] != null ? double.tryParse(order['delivery_lat'].toString()) : null;
+                          var dLng = order['delivery_lng'] != null ? double.tryParse(order['delivery_lng'].toString()) : null;
+                          if (dLat == null || dLng == null) {
+                            final addr = (order['delivery_address'] ?? '').toString();
+                            final match = RegExp(r'\(([-\d.]+)[°,\s]+([-\d.]+)[°]?\)').firstMatch(addr);
+                            if (match != null) {
+                              dLat = double.tryParse(match.group(1)!);
+                              dLng = double.tryParse(match.group(2)!);
+                            }
+                          }
+                          if (dLat != null && dLng != null) {
+                            return GestureDetector(
+                              onTap: () => _openMap(dLat, dLng),
+                              child: const Icon(Icons.map_outlined, size: 18, color: Color(0xFF059669)),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
                     ],
                   ),
                 ],
@@ -967,20 +996,57 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
             if (!isCompleted) ...[
               const SizedBox(height: 14),
               if (order['status'] == 'accepted') ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _pickupOrder(order['id']),
-                    icon: const Icon(Icons.inventory_2_outlined, size: 18),
-                    label: const Text('Order Pick Up'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryTeal,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _pickupOrder(order['id']),
+                          icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                          label: const Text('Order Pick Up'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryTeal,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Builder(
+                      builder: (context) {
+                        var dLat = order['delivery_lat'] != null ? double.tryParse(order['delivery_lat'].toString()) : null;
+                        var dLng = order['delivery_lng'] != null ? double.tryParse(order['delivery_lng'].toString()) : null;
+                        if (dLat == null || dLng == null) {
+                          final addr = (order['delivery_address'] ?? '').toString();
+                          final match = RegExp(r'\(([-\d.]+)[°,\s]+([-\d.]+)[°]?\)').firstMatch(addr);
+                          if (match != null) {
+                            dLat = double.tryParse(match.group(1)!);
+                            dLng = double.tryParse(match.group(2)!);
+                          }
+                        }
+                        if (dLat != null && dLng != null) {
+                          return SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: OutlinedButton(
+                              onPressed: () => _openMap(dLat, dLng),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF2563EB),
+                                side: const BorderSide(color: Color(0xFF2563EB)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: EdgeInsets.zero,
+                              ),
+                              child: const Icon(Icons.map_outlined, size: 20),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ],
                 ),
               ] else ...[
                 Row(
