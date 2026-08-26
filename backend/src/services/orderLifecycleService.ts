@@ -65,6 +65,41 @@ export async function acceptOrder(
       [orderId],
     );
 
+    // Deduct stock on acceptance
+    const { rows: orderDetail } = await client.query(
+      `SELECT product_name, quantity, supplier_id, inventory_id FROM orders WHERE id = $1`,
+      [orderId],
+    );
+    if (orderDetail[0]) {
+      const od = orderDetail[0];
+      // Try by inventory_id first, fall back to name match
+      const invRows = await client.query<{ id: string }>(
+        `SELECT COALESCE(
+           (SELECT o.inventory_id FROM orders o WHERE o.id = $1),
+           (SELECT si.id FROM public.stockholder_inventory si
+            WHERE si.stockholder_id = $2
+              AND LOWER(si.custom_product_name) = LOWER($3)
+            LIMIT 1)
+         ) AS id`,
+        [orderId, od.supplier_id, od.product_name],
+      );
+      const linkedInventoryId = invRows.rows[0]?.id;
+      if (linkedInventoryId) {
+        await client.query(
+          `UPDATE public.stockholder_inventory
+           SET quantity_available = GREATEST(0, quantity_available - $1),
+               is_available = CASE WHEN (quantity_available - $1) <= 0 THEN false ELSE is_available END
+           WHERE id = $2`,
+          [od.quantity, linkedInventoryId],
+        );
+        if (!od.inventory_id) {
+          await client.query(`UPDATE orders SET inventory_id = $1 WHERE id = $2`, [
+            linkedInventoryId, orderId,
+          ]);
+        }
+      }
+    }
+
     // Notify shop owner
     await client.query(
       `INSERT INTO notifications (user_id, title, subtitle, type)
