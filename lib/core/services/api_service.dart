@@ -37,7 +37,7 @@ class ApiService {
       debugPrint('[ApiService] GET ${response.statusCode} ${response.body}');
       final body = json.decode(response.body);
       if ((response.statusCode == 200 || response.statusCode == 201) && body['success'] == true) {
-        return body['data'];
+        return body['data'] ?? body;
       }
       return null;
     } catch (e) {
@@ -81,7 +81,7 @@ class ApiService {
       debugPrint('[ApiService] PATCH ${response.statusCode} ${response.body}');
       final respBody = json.decode(response.body);
       if ((response.statusCode == 200 || response.statusCode == 201) && respBody['success'] == true) {
-        return respBody['data'];
+        return respBody['data'] ?? respBody;
       }
       return null;
     } catch (e) {
@@ -122,7 +122,7 @@ class ApiService {
       debugPrint('[ApiService] POST multipart ${response.statusCode} ${response.body}');
       final respBody = json.decode(response.body);
       if ((response.statusCode == 200 || response.statusCode == 201) && respBody['success'] == true) {
-        return respBody['data'];
+        return respBody['data'] ?? respBody;
       }
       return null;
     } catch (e) {
@@ -140,7 +140,7 @@ class ApiService {
       debugPrint('[ApiService] DELETE ${response.statusCode} ${response.body}');
       final respBody = json.decode(response.body);
       if ((response.statusCode == 200 || response.statusCode == 201) && respBody['success'] == true) {
-        return respBody['data'];
+        return respBody['data'] ?? respBody;
       }
       return null;
     } catch (e) {

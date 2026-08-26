@@ -70,6 +70,7 @@ import {
   requestRiderHandler,
   sendDeliveryOtpHandler,
   notifyArrivalHandler,
+  shopOwnerConfirmDeliveryHandler,
 } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
@@ -154,6 +155,7 @@ router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as
 router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
 router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
 router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man
+router.post('/orders/:id/confirm-delivery', shopOwnerConfirmDeliveryHandler); // authenticated as shop_owner
 
 // ---- Notifications ----
 router.get('/notifications', getNotificationsHandler);
