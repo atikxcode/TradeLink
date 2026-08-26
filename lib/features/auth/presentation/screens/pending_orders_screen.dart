@@ -477,6 +477,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
                             shopOwnerPhone: order['shopOwnerPhone'] ?? '',
                             deliveryLocation: order['deliveryLocation'],
                             deliveryOtp: order['deliveryOtp'],
+                            deliveryManId: order['deliveryManId'],
                             isActionInProgress: _isActionInProgress,
                             onAccept: () => _acceptOrder(order['orderId'] ?? ''),
                             onDecline: () => _declineOrder(order['orderId'] ?? ''),
@@ -675,6 +676,7 @@ class _SupplierOrderCard extends StatelessWidget {
   final String shopOwnerPhone;
   final String? deliveryLocation;
   final String? deliveryOtp;
+  final String? deliveryManId;
   final bool isActionInProgress;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
@@ -695,6 +697,7 @@ class _SupplierOrderCard extends StatelessWidget {
     required this.shopOwnerPhone,
     this.deliveryLocation,
     this.deliveryOtp,
+    this.deliveryManId,
     this.isActionInProgress = false,
     required this.onAccept,
     required this.onDecline,
@@ -941,32 +944,59 @@ class _SupplierOrderCard extends StatelessWidget {
                 ],
               ),
             ] else if (orderStatus == 'accepted') ...[
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  onPressed: isActionInProgress ? null : onAssignDelivery,
-                  icon: const Icon(Icons.electric_bike_rounded, size: 18),
-                  label: const Text('Request Rider'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange.shade700,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              if (deliveryManId != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle, size: 18, color: Color(0xFF10B981)),
+                      SizedBox(width: 8),
+                      Text(
+                        'Rider Assigned',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              if (onTrackRider != null) ...[
-                const SizedBox(height: 8),
+                if (onTrackRider != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: isActionInProgress ? null : onTrackRider,
+                      icon: const Icon(Icons.location_on, size: 18),
+                      label: const Text('Track Rider'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo.shade600,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ] else ...[
                 SizedBox(
                   width: double.infinity,
                   height: 44,
                   child: ElevatedButton.icon(
-                    onPressed: isActionInProgress ? null : onTrackRider,
-                    icon: const Icon(Icons.location_on, size: 18),
-                    label: const Text('Track Rider'),
+                    onPressed: isActionInProgress ? null : onAssignDelivery,
+                    icon: const Icon(Icons.electric_bike_rounded, size: 18),
+                    label: const Text('Request Rider'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo.shade600,
+                      backgroundColor: Colors.orange.shade700,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
