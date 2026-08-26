@@ -181,6 +181,28 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
     }
   }
 
+  Future<void> _pickupOrder(String orderId) async {
+    setState(() => _isLoading = true);
+    final res = await ApiService.patch('/delivery/orders/$orderId/pickup', body: {});
+
+    if (res != null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Order picked up! OTP sent to shop owner.'),
+        backgroundColor: AppColors.primaryTeal,
+      ));
+      _fetchMyDeliveries();
+    } else {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Failed to pick up order.'),
+        backgroundColor: AppColors.cancelled,
+      ));
+      _fetchMyDeliveries();
+    }
+  }
+
   Future<void> _showDeliveryCompletionOptions(String orderId) async {
     showModalBottomSheet(
       context: context,
@@ -932,47 +954,65 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
             ),
             if (!isCompleted) ...[
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  if (order['delivery_lat'] != null && order['delivery_lng'] != null)
+              if (order['status'] == 'accepted') ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _pickupOrder(order['id']),
+                    icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                    label: const Text('Order Pick Up'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryTeal,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    if (order['delivery_lat'] != null && order['delivery_lng'] != null)
+                      Expanded(
+                        child: SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _openMap(
+                              double.tryParse(order['delivery_lat'].toString()), 
+                              double.tryParse(order['delivery_lng'].toString())
+                            ),
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            label: const Text('Open Map'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2563EB),
+                              side: const BorderSide(color: Color(0xFF2563EB)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (order['delivery_lat'] != null && order['delivery_lng'] != null)
+                      const SizedBox(width: 12),
                     Expanded(
                       child: SizedBox(
                         height: 44,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openMap(
-                            double.tryParse(order['delivery_lat'].toString()), 
-                            double.tryParse(order['delivery_lng'].toString())
-                          ),
-                          icon: const Icon(Icons.map_outlined, size: 18),
-                          label: const Text('Open Map'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF2563EB),
-                            side: const BorderSide(color: Color(0xFF2563EB)),
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showDeliveryCompletionOptions(order['id']),
+                          icon: const Icon(Icons.check_circle_outline, size: 18),
+                          label: const Text('Verify Delivery'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryTeal,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
                     ),
-                  if (order['delivery_lat'] != null && order['delivery_lng'] != null)
-                    const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showDeliveryCompletionOptions(order['id']),
-                        icon: const Icon(Icons.check_circle_outline, size: 18),
-                        label: const Text('Verify Delivery'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryTeal,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ],
           ],
         ),

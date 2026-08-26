@@ -134,42 +134,19 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
 
 
   Future<void> _requestRider(String orderId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id');
-    final role = prefs.getString('user_role');
-
-    if (userId == null || role == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User not logged in')));
-      return;
-    }
-
+    if (_isActionInProgress) return;
     setState(() => _isActionInProgress = true);
-    try {
-      final patchRes = await http.patch(
-        Uri.parse('${ApiConfig.baseUrl}/orders/$orderId/request-rider'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': '$userId::$role',
-        },
+    final result = await _patchAction('/orders/$orderId/request-rider');
+    if (mounted) {
+      setState(() => _isActionInProgress = false);
+      final isError = result == null || result.startsWith('Invalid') || result.startsWith('Network') || result.startsWith('Failed');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isError ? (result ?? 'Failed to request rider') : 'Looking for nearby riders...'),
+          backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        ),
       );
-
-      setState(() => _isActionInProgress = false);
-      final patchBody = jsonDecode(patchRes.body);
-      if (patchRes.statusCode == 200 && patchBody['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Looking for nearby riders...'),
-          backgroundColor: Color(0xFF10B981),
-        ));
-        _fetchPendingOrders();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(patchBody['error'] ?? 'Failed to request rider'),
-          backgroundColor: const Color(0xFFEF4444),
-        ));
-      }
-    } catch (e) {
-      setState(() => _isActionInProgress = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Network error')));
+      _fetchPendingOrders();
     }
   }
 
@@ -291,6 +268,32 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
       final body = jsonDecode(response.body);
       if (response.statusCode == 200 && body['success'] == true) {
         return body['data']['message'] ?? 'Action completed';
+      }
+      return body['error'] ?? 'Action failed';
+    } catch (e) {
+      return 'Network error - please try again';
+    }
+  }
+
+  Future<String?> _patchAction(String path) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id') ?? '';
+      final role = prefs.getString('user_role') ?? 'supplier';
+      final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+
+      final response = await http.patch(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-User-Id': '$userId::$role',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(response.body);
+      if (response.statusCode == 200 && body['success'] == true) {
+        return body['data']?['message'] ?? body['message'] ?? 'Action completed';
       }
       return body['error'] ?? 'Action failed';
     } catch (e) {
@@ -911,11 +914,11 @@ class _SupplierOrderCard extends StatelessWidget {
                 width: double.infinity,
                 height: 44,
                 child: ElevatedButton.icon(
-                  onPressed: isActionInProgress ? null : onOutForDelivery,
-                  icon: const Icon(Icons.local_shipping_outlined, size: 18),
-                  label: const Text('Mark Out for Delivery'),
+                  onPressed: isActionInProgress ? null : onAssignDelivery,
+                  icon: const Icon(Icons.electric_bike_rounded, size: 18),
+                  label: const Text('Request Rider'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
+                    backgroundColor: Colors.orange.shade700,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -940,22 +943,6 @@ class _SupplierOrderCard extends StatelessWidget {
                   ),
                 ),
               ],
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  onPressed: isActionInProgress ? null : onAssignDelivery,
-                  icon: const Icon(Icons.electric_bike_rounded, size: 18),
-                  label: const Text('Request Rider'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange.shade700,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
             ] else if (orderStatus == 'searching_for_rider') ...[
               Container(
                 width: double.infinity,

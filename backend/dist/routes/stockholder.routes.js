@@ -17,7 +17,7 @@ import { assistantChatHandler, placeChatbotOrderHandler } from '../controllers/a
 import { startChatHandler, getUserChatsHandler, getChatMessagesHandler, sendChatMessageHandler, } from '../controllers/chatController.js';
 import { initiateNegotiationHandler, getShopOwnerNegotiationsHandler, getSupplierNegotiationsHandler, counterNegotiationHandler, respondToNegotiationHandler, sendNegotiationMessageHandler, getNegotiationMessagesHandler, getSupplierNegotiationsByIdHandler, finalizeNegotiationHandler, } from '../controllers/negotiationController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
-import { acceptRequestHandler, getDeliveryManOrdersHandler, getNearbyRequestsHandler, markOrderDeliveredHandler, registerDeliveryManHandler, requestRiderHandler, sendDeliveryOtpHandler, notifyArrivalHandler, } from '../controllers/deliveryController.js';
+import { acceptRequestHandler, getDeliveryManOrdersHandler, getNearbyRequestsHandler, markOrderDeliveredHandler, registerDeliveryManHandler, requestRiderHandler, sendDeliveryOtpHandler, notifyArrivalHandler, shopOwnerConfirmDeliveryHandler, pickupOrderHandler, } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
 // Configure multer for image uploads.
@@ -82,9 +82,11 @@ router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
 router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
 router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
 router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man
+router.patch('/delivery/orders/:id/pickup', pickupOrderHandler); // authenticated as delivery_man
 router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
 router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
 router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man
+router.post('/orders/:id/confirm-delivery', shopOwnerConfirmDeliveryHandler); // authenticated as shop_owner
 // ---- Notifications ----
 router.get('/notifications', getNotificationsHandler);
 router.get('/notifications/unread-count', getUnreadCountHandler);

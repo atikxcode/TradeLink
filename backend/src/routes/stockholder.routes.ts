@@ -71,6 +71,7 @@ import {
   sendDeliveryOtpHandler,
   notifyArrivalHandler,
   shopOwnerConfirmDeliveryHandler,
+  pickupOrderHandler,
 } from '../controllers/deliveryController.js';
 import { requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
@@ -152,6 +153,7 @@ router.patch('/orders/:id/request-rider', requireSupplier, requestRiderHandler);
 router.get('/delivery/requests', getNearbyRequestsHandler); // authenticated as delivery_man
 router.patch('/delivery/requests/:id/accept', acceptRequestHandler); // authenticated as delivery_man
 router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as delivery_man
+router.patch('/delivery/orders/:id/pickup', pickupOrderHandler); // authenticated as delivery_man
 router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
 router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
 router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man
