@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/api_service.dart';
 import 'track_rider_screen.dart';
 import '../../../../core/config/api_config.dart';
@@ -34,6 +36,7 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
   List<Map<String, dynamic>> _completedOrders = [];
 
   late final TabController _tabController;
+  RealtimeChannel? _ordersChannel;
 
   @override
   void initState() {
@@ -41,12 +44,31 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
     _tabController = TabController(length: 2, vsync: this);
     _fetchPendingOrders();
     _fetchCompletedOrders();
+    _subscribeToOrders();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _ordersChannel?.unsubscribe();
     super.dispose();
+  }
+
+  void _subscribeToOrders() {
+    _ordersChannel = SupabaseConfig.client
+        .channel('supplier-orders')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'orders',
+          callback: (payload) {
+            if (mounted) {
+              _fetchPendingOrders();
+              _fetchCompletedOrders();
+            }
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _fetchPendingOrders() async {
@@ -258,11 +280,11 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
 
       final resBody = jsonDecode(response.body);
       if (response.statusCode == 200 && resBody['success'] == true) {
-        return resBody['data']['message'] ?? 'Action completed';
+        return resBody['data']?['message'] ?? resBody['message'] ?? 'Action completed';
       }
-      return resBody['error'] ?? 'Action failed';
+      return null;
     } catch (e) {
-      return 'Network error - please try again';
+      return null;
     }
   }
 
@@ -284,11 +306,11 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
 
       final body = jsonDecode(response.body);
       if (response.statusCode == 200 && body['success'] == true) {
-        return body['data']['message'] ?? 'Action completed';
+        return body['data']?['message'] ?? body['message'] ?? 'Action completed';
       }
-      return body['error'] ?? 'Action failed';
+      return null;
     } catch (e) {
-      return 'Network error - please try again';
+      return null;
     }
   }
 
@@ -312,9 +334,9 @@ class _PendingOrdersScreenState extends State<PendingOrdersScreen>
       if (response.statusCode == 200 && body['success'] == true) {
         return body['data']?['message'] ?? body['message'] ?? 'Action completed';
       }
-      return body['error'] ?? 'Action failed';
+      return null;
     } catch (e) {
-      return 'Network error - please try again';
+      return null;
     }
   }
 
