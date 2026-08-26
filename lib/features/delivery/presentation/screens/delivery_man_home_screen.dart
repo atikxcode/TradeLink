@@ -9,7 +9,7 @@ import '../../../../core/services/api_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import 'delivery_request_details_screen.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import '../screens/qr_scanner_screen.dart';
 
 class DeliveryManHomeScreen extends StatefulWidget {
   const DeliveryManHomeScreen({Key? key}) : super(key: key);
@@ -262,12 +262,12 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
             _buildCompletionOption(
               ctx,
               icon: Icons.qr_code_scanner,
-              title: 'Show QR Code',
-              subtitle: 'Let the shop owner scan your QR to confirm',
+              title: 'Scan QR Code',
+              subtitle: 'Scan the shop owner\'s QR code to confirm',
               color: const Color(0xFF2563EB),
               onTap: () {
                 Navigator.pop(ctx);
-                _showQrCodeModal(orderId);
+                _scanQrAndVerify(orderId);
               },
             ),
           ],
@@ -322,65 +322,15 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
     );
   }
 
-  void _showQrCodeModal(String orderId) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.qr_code_2, color: AppColors.primaryTeal, size: 26),
-              ),
-              const SizedBox(height: 16),
-              const Text('Scan to Confirm', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              const SizedBox(height: 4),
-              const Text('Show this to the shop owner', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.inputBorder),
-                ),
-                child: QrImageView(
-                  data: orderId,
-                  version: QrVersions.auto,
-                  size: 180.0,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _fetchMyDeliveries();
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryTeal,
-                    side: const BorderSide(color: AppColors.primaryTeal),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _scanQrAndVerify(String orderId) async {
+    final otp = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
     );
+
+    if (otp != null && otp.trim().isNotEmpty) {
+      _processOtp(orderId, otp.trim(), isQrScan: true);
+    }
   }
 
   Future<void> _sendOtpAndVerify(String orderId) async {

@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>TradeLink needs camera access to scan QR codes for delivery verification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>TradeLink needs your location to show nearby suppliers and calculate delivery distances.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
