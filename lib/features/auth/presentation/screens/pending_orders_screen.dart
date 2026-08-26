@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
 import 'track_rider_screen.dart';
 import '../../../../core/config/api_config.dart';
+import '../../../marketplace/presentation/screens/order_chat_screen.dart';
 
 class PendingOrdersScreen extends StatefulWidget {
   final bool embedded;
@@ -811,6 +812,29 @@ class _SupplierOrderCard extends StatelessWidget {
                   label: const Text('Request Rider'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange.shade700,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OrderChatScreen(orderId: orderId),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.group, size: 18),
+                  label: const Text('Group Chat'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

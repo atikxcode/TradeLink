@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import 'direct_chat_screen.dart';
+import 'order_chat_screen.dart';
 
 const Color _csPrimaryTeal = Color(0xFF0F766E);
 const Color _csScreenBg = Color(0xFFF8FAFC);
@@ -26,11 +28,26 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _chats = [];
+  Timer? _heartbeatTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchChats();
+    _startHeartbeat();
+  }
+
+  @override
+  void dispose() {
+    _heartbeatTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startHeartbeat() {
+    ApiService.sendHeartbeat();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      ApiService.sendHeartbeat();
+    });
   }
 
   Future<void> _fetchChats() async {
@@ -50,12 +67,22 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   void _openChat(Map<String, dynamic> chat) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DirectChatScreen(chatId: chat['id'].toString()),
-      ),
-    );
+    final isOrderChat = chat['isOrderChat'] == true;
+    if (isOrderChat) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderChatScreen(orderId: chat['orderId'].toString()),
+        ),
+      );
+    } else {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DirectChatScreen(chatId: chat['id'].toString()),
+        ),
+      );
+    }
     _fetchChats();
   }
 
@@ -153,18 +180,50 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final product = (chat['productName'] ?? '').toString();
     final lastMessage = (chat['lastMessage'] ?? '').toString();
     final time = _timeAgo((chat['updatedAt'] ?? '').toString());
+    final isOrderChat = chat['isOrderChat'] == true;
+    
+    bool isOnline = false;
+    final lastActiveStr = chat['lastActiveAt'];
+    if (lastActiveStr != null && lastActiveStr.toString().isNotEmpty) {
+      try {
+        final lastActive = DateTime.parse(lastActiveStr.toString()).toLocal();
+        if (DateTime.now().difference(lastActive).inMinutes <= 2) {
+          isOnline = true;
+        }
+      } catch (_) {}
+    }
 
     return ListTile(
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: _csPrimaryTeal.withValues(alpha: 0.12),
-        child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-            style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: _csPrimaryTeal)),
+      leading: Stack(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: isOrderChat ? Colors.orange.withValues(alpha: 0.12) : _csPrimaryTeal.withValues(alpha: 0.12),
+            child: isOrderChat
+                ? const Icon(Icons.group, color: Colors.orange)
+                : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: _csPrimaryTeal)),
+          ),
+          if (!isOrderChat)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: isOnline ? Colors.blue : Colors.grey,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+              ),
+            ),
+        ],
       ),
       title: Text(name,
           maxLines: 1,

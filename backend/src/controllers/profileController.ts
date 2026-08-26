@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { getProfile, updateProfile, type UpdateProfilePayload } from '../services/profileService.js';
+import { getProfile, updateProfile, updateLastActiveAt, type UpdateProfilePayload } from '../services/profileService.js';
 
 export const getProfileHandler = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = req.userId!;
@@ -35,4 +35,10 @@ export const updateProfileHandler = asyncHandler(async (req: AuthRequest, res: R
     return;
   }
   res.json({ success: true, data: profile });
+});
+
+export const heartbeatHandler = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  await updateLastActiveAt(userId);
+  res.json({ success: true });
 });

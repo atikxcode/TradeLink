@@ -11,6 +11,7 @@ interface ChatDto {
   productName: string | null;
   productUnit: string | null;
   counterpartName: string;
+  lastActiveAt?: string | null;
   lastMessage: string;
   updatedAt: string;
 }
@@ -29,7 +30,9 @@ const CHAT_SELECT = `
          c.last_message,
          c.updated_at,
          COALESCE(ou.business_name, ou.full_name, 'Shop Owner') AS shop_owner_name,
-         COALESCE(su.business_name, su.full_name, 'Supplier') AS supplier_name
+         COALESCE(su.business_name, su.full_name, 'Supplier') AS supplier_name,
+         ou.last_active_at AS shop_owner_active_at,
+         su.last_active_at AS supplier_active_at
   FROM public.chats c
   LEFT JOIN public.stockholder_inventory si ON si.id = c.product_id
   LEFT JOIN public.users ou ON ou.id = c.shop_owner_id
@@ -47,6 +50,7 @@ function mapChat(row: any, viewerRole: 'shop_owner' | 'supplier'): ChatDto {
     counterpartName:
       (viewerRole === 'shop_owner' ? row.supplier_name : row.shop_owner_name) ??
       'User',
+    lastActiveAt: (viewerRole === 'shop_owner' ? row.supplier_active_at : row.shop_owner_active_at)?.toISOString?.() ?? null,
     lastMessage: row.last_message ?? '',
     updatedAt: row.updated_at?.toISOString?.() ?? String(row.updated_at),
   };
@@ -145,19 +149,65 @@ export const startChatHandler = asyncHandler(
 export const getUserChatsHandler = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
-    const role = (req.role ?? '').toLowerCase() === 'supplier'
-      ? 'supplier'
-      : 'shop_owner';
+    const role = (req.role ?? '').toLowerCase();
+    
+    // direct chat role matching
+    const directRole = role === 'supplier' ? 'supplier' : 'shop_owner';
+    const directColumn = role === 'supplier' ? 'stockholder_id' : 'shop_owner_id';
 
-    const column = role === 'supplier' ? 'stockholder_id' : 'shop_owner_id';
-    const { rows } = await db.query(
-      `${CHAT_SELECT} WHERE c.${column} = $1 ORDER BY c.updated_at DESC LIMIT 100`,
-      [userId],
+    // order chat role matching
+    const orderColumn = role === 'supplier' 
+      ? 'supplier_id' 
+      : role === 'delivery_man' || role === 'delivery' 
+        ? 'delivery_man_id' 
+        : 'shop_owner_id';
+
+    const { rows: directRows } = await db.query(
+      `${CHAT_SELECT} WHERE c.${directColumn} = $1 ORDER BY c.updated_at DESC LIMIT 100`,
+      [userId]
     );
+
+    const { rows: orderRows } = await db.query(
+      `SELECT c.id, c.order_id, c.last_message, c.updated_at,
+              o.shop_owner_id, o.supplier_id, o.delivery_man_id,
+              COALESCE(ou.business_name, ou.full_name, 'Shop Owner') AS shop_owner_name,
+              COALESCE(su.business_name, su.full_name, 'Supplier') AS supplier_name,
+              COALESCE(du.full_name, 'Delivery Rider') AS delivery_man_name
+       FROM public.order_chats c
+       JOIN public.orders o ON o.id = c.order_id
+       LEFT JOIN public.users ou ON ou.id = o.shop_owner_id
+       LEFT JOIN public.users su ON su.id = o.supplier_id
+       LEFT JOIN public.users du ON du.id = o.delivery_man_id
+       WHERE o.${orderColumn} = $1
+       ORDER BY c.updated_at DESC LIMIT 100`,
+      [userId]
+    );
+
+    const directChats = directRows.map((r) => mapChat(r, directRole as 'shop_owner' | 'supplier'));
+
+    const orderChats = orderRows.map((r) => ({
+      id: r.id, 
+      orderId: r.order_id,
+      isOrderChat: true,
+      shopOwnerId: r.shop_owner_id,
+      stockholderId: r.supplier_id,
+      productId: null,
+      productName: 'Order Group Chat',
+      productUnit: '',
+      counterpartName: 'Group Chat',
+      lastMessage: r.last_message ?? '',
+      updatedAt: r.updated_at?.toISOString?.() ?? String(r.updated_at),
+    }));
+
+    const combined = [...directChats, ...orderChats].sort((a, b) => {
+      const timeA = new Date(a.updatedAt).getTime();
+      const timeB = new Date(b.updatedAt).getTime();
+      return timeB - timeA;
+    }).slice(0, 100);
 
     res.json({
       success: true,
-      data: rows.map((r) => mapChat(r, role as 'shop_owner' | 'supplier')),
+      data: combined,
     });
   },
 );
@@ -184,7 +234,7 @@ export const getChatMessagesHandler = asyncHandler(
     }
 
     const { rows } = await db.query(
-      `SELECT m.*, COALESCE(u.business_name, u.full_name, 'User') AS sender_name
+      `SELECT m.*, COALESCE(u.business_name, u.full_name, 'User') AS sender_name, u.last_active_at
        FROM public.messages m
        LEFT JOIN public.users u ON u.id = m.sender_id
        WHERE m.chat_id = $1
@@ -202,7 +252,9 @@ export const getChatMessagesHandler = asyncHandler(
           senderId: m.sender_id,
           senderName: m.sender_name,
           textContent: m.text_content,
+          imageUrl: m.image_url,
           createdAt: m.created_at.toISOString(),
+          lastActiveAt: m.last_active_at ? m.last_active_at.toISOString() : null,
         })),
       },
     });
@@ -285,4 +337,84 @@ export const sendChatMessageHandler = asyncHandler(
       client.release();
     }
   },
+);
+
+/**
+ * POST /chats/:chatId/messages/image
+ * Uploads an image as a message to the chat.
+ * Uses multer for file upload.
+ */
+export const sendChatImageHandler = asyncHandler(
+  async (req: AuthRequest, res: Response) => {
+    const senderId = req.userId!;
+    const role = (req.role ?? '').toLowerCase() === 'supplier'
+      ? 'supplier'
+      : 'shop_owner';
+    const senderType = role === 'shop_owner' ? 'SHOP_OWNER' : 'SUPPLIER';
+    const chatId = String(req.params.chatId);
+    const file = req.file;
+
+    if (!file) {
+      res.status(400).json({ success: false, error: 'Image file is required' });
+      return;
+    }
+
+    const imageUrl = `/uploads/${file.filename}`;
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `SELECT * FROM public.chats WHERE id = $1 FOR UPDATE`,
+        [chatId],
+      );
+      const chat = rows[0];
+      if (!chat) throw httpError('Chat not found', 404);
+      if (
+        chat.shop_owner_id !== senderId &&
+        chat.stockholder_id !== senderId
+      ) {
+        throw httpError('You are not a participant of this chat', 403);
+      }
+
+      const inserted = await client.query(
+        `INSERT INTO public.messages
+           (chat_id, sender_type, sender_id, image_url)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, created_at`,
+        [chatId, senderType, senderId, imageUrl],
+      );
+
+      await client.query(
+        `UPDATE public.chats SET last_message = $1, updated_at = now()
+         WHERE id = $2`,
+        ['📷 Image', chatId],
+      );
+
+      // Notify counterparty
+      const counterpartyId =
+        senderType === 'SHOP_OWNER' ? chat.stockholder_id : chat.shop_owner_id;
+      await client.query(
+        `INSERT INTO notifications (user_id, title, subtitle, type)
+         VALUES ($1, $2, $3, 'chat')`,
+        [counterpartyId, 'New image', '📷 Image'],
+      );
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: inserted.rows[0].id,
+          createdAt: inserted.rows[0].created_at.toISOString(),
+          imageUrl,
+        },
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 );

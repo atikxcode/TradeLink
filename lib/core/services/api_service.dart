@@ -148,4 +148,12 @@ class ApiService {
       return null;
     }
   }
+
+  static Future<void> sendHeartbeat() async {
+    try {
+      final headers = await _headers();
+      final url = '$_baseUrl/profile/heartbeat';
+      await http.post(Uri.parse(url), headers: headers);
+    } catch (_) {}
+  }
 }
