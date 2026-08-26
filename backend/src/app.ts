@@ -18,7 +18,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/stock-images', stockImageRoutes);
 
 app.get('/health', (_req, res) => {
-  res.json({ success: true, message: 'TradeLink API is running' });
+  res.json({ success: true, message: 'TradeLink API is running', ts: Date.now() });
 });
 
 app.use('/api/v1', requireAuth, stockholderRoutes);
