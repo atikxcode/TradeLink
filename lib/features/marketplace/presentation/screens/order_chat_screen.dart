@@ -6,7 +6,6 @@ import '../../../../core/services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../../../../core/config/api_config.dart';
-import 'conversations_screen.dart';
 
 const Color _dcPrimaryTeal = Color(0xFF0F766E);
 const Color _dcScreenBg = Color(0xFFF8FAFC);
@@ -14,21 +13,22 @@ const Color _dcDarkText = Color(0xFF0F172A);
 const Color _dcMutedText = Color(0xFF64748B);
 const Color _dcBorderGray = Color(0xFFE2E8F0);
 
-/// General-purpose direct chat between a Shop Owner and a Supplier.
-class DirectChatScreen extends StatefulWidget {
-  final String chatId;
-  const DirectChatScreen({super.key, required this.chatId});
+/// Group chat for an Order connecting Shop Owner, Supplier, and Delivery Rider
+class OrderChatScreen extends StatefulWidget {
+  final String orderId;
+  const OrderChatScreen({super.key, required this.orderId});
 
   @override
-  State<DirectChatScreen> createState() => _DirectChatScreenState();
+  State<OrderChatScreen> createState() => _OrderChatScreenState();
 }
 
-class _DirectChatScreenState extends State<DirectChatScreen> {
+class _OrderChatScreenState extends State<OrderChatScreen> {
   Map<String, dynamic>? _chat;
   List<Map<String, dynamic>> _messages = [];
   String? _error;
   bool _sending = false;
   String _myRole = '';
+  String _myUserId = '';
   Timer? _pollTimer;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -38,7 +38,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     super.initState();
     _loadMyContext();
     _fetchThread();
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _fetchThread());
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fetchThread());
   }
 
   @override
@@ -52,39 +52,31 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
   Future<void> _loadMyContext() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() => _myRole = prefs.getString('user_role') ?? '');
+    setState(() {
+      _myRole = prefs.getString('user_role') ?? '';
+      _myUserId = prefs.getString('user_id') ?? '';
+    });
   }
 
-  bool get _isShopOwner => _myRole == 'shop_owner';
-
-  bool _isMine(Map<String, dynamic> m) =>
-      (m['senderType']?.toString() ?? '') ==
-      (_isShopOwner ? 'SHOP_OWNER' : 'SUPPLIER');
+  bool _isMine(Map<String, dynamic> m) {
+    return (m['senderId']?.toString() == _myUserId);
+  }
 
   Future<void> _fetchThread() async {
-    final data = await ApiService.get('/chats/${widget.chatId}/messages');
+    final data = await ApiService.get('/orders/${widget.orderId}/chat/messages');
     if (data != null && mounted) {
       setState(() {
         _chat = Map<String, dynamic>.from(data['chat'] ?? {});
         _messages = List<Map<String, dynamic>>.from(data['messages'] ?? []);
         _error = null;
       });
-      _scrollToBottom();
+      // Scroll to bottom only if user hasn't scrolled up, but for simplicity:
+      if (_messages.isNotEmpty && _scrollController.hasClients) {
+        // Keep to bottom
+      }
     } else if (mounted && _chat == null) {
       setState(() => _error = 'Failed to load conversation.');
     }
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-        );
-      }
-    });
   }
 
   Future<void> _send() async {
@@ -93,7 +85,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
 
     setState(() => _sending = true);
     final result = await ApiService.post(
-        '/chats/${widget.chatId}/messages',
+        '/orders/${widget.orderId}/chat/messages',
         body: {'textContent': text});
     if (!mounted) return;
     setState(() {
@@ -102,6 +94,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     });
     if (result != null) {
       await _fetchThread();
+      _scrollToBottom();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Failed to send'),
@@ -118,7 +111,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     final bytes = await picked.readAsBytes();
     
     final result = await ApiService.postMultipart(
-      '/chats/${widget.chatId}/messages/image',
+      '/orders/${widget.orderId}/chat/messages/image',
       fields: {},
       imageBytes: bytes,
       imageFileName: picked.name,
@@ -129,6 +122,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     
     if (result != null) {
       await _fetchThread();
+      _scrollToBottom();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Failed to send image'),
@@ -136,32 +130,33 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
     }
   }
 
-  /// Backend resolves the correct partner per viewer role
-  /// (shop owner sees the supplier's business name, supplier sees the
-  /// shop owner's business/full name). No hardcoded fallback names.
-  String get _counterpartName {
-    final v = _chat != null ? _chat!['counterpartName'] : null;
-    final name = v?.toString().trim() ?? '';
-    return name.isNotEmpty ? name : 'Chat';
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
-  String get _avatarInitial {
-    final name = _counterpartName;
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
-    if (parts.isEmpty) return '?';
-    if (parts.length >= 2) {
-      final initials =
-          '${parts.first[0]}${parts.elementAt(1)[0]}'.toUpperCase();
-      return initials;
+  String _getRoleLabel(String senderType) {
+    switch (senderType) {
+      case 'SHOP_OWNER':
+        return 'Shop Owner';
+      case 'SUPPLIER':
+        return 'Supplier';
+      case 'DELIVERY_RIDER':
+        return 'Delivery Rider';
+      default:
+        return 'User';
     }
-    return name[0].toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
-    final productName = (_chat?['productName'] ?? '').toString();
-
     return Scaffold(
       backgroundColor: _dcScreenBg,
       appBar: AppBar(
@@ -173,49 +168,22 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: _dcPrimaryTeal.withValues(alpha: 0.12),
-              child: Text(
-                _avatarInitial,
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _dcPrimaryTeal),
-              ),
+              child: const Icon(Icons.group, size: 20, color: _dcPrimaryTeal),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_counterpartName,
-                      style: const TextStyle(
-                          fontSize: 15,
+                  const Text('Order Chat',
+                      style: TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: _dcDarkText),
                       overflow: TextOverflow.ellipsis),
-                  Builder(builder: (context) {
-                    bool isOnline = false;
-                    final lastActiveStr = _chat?['lastActiveAt'];
-                    if (lastActiveStr != null && lastActiveStr.toString().isNotEmpty) {
-                      try {
-                        final lastActive = DateTime.parse(lastActiveStr.toString()).toLocal();
-                        if (DateTime.now().difference(lastActive).inMinutes <= 2) {
-                          isOnline = true;
-                        }
-                      } catch (_) {}
-                    }
-                    return Row(children: [
-                      Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                              color: isOnline ? const Color(0xFF10B981) : Colors.grey,
-                              shape: BoxShape.circle)),
-                      const SizedBox(width: 4),
-                      Text(isOnline ? 'Online' : 'Offline',
-                          style: TextStyle(
-                              fontSize: 11, color: isOnline ? const Color(0xFF10B981) : Colors.grey)),
-                    ]);
-                  }),
+                  const Text('Live Update Group',
+                      style: TextStyle(
+                          fontSize: 11, color: _dcMutedText)),
                 ],
               ),
             ),
@@ -224,38 +192,12 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF374151)),
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const ConversationsScreen()),
-              );
-            }
+            Navigator.pop(context);
           },
         ),
       ),
       body: Column(
         children: [
-          if (productName.isNotEmpty)
-            Container(
-              width: double.infinity,
-              color: const Color(0xFFEEF8F6),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(children: [
-                const Icon(Icons.inventory_2_outlined,
-                    size: 14, color: _dcPrimaryTeal),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text('About: $productName',
-                      style: const TextStyle(
-                          fontSize: 12.5, color: _dcPrimaryTeal),
-                      overflow: TextOverflow.ellipsis),
-                ),
-              ]),
-            ),
           Expanded(
             child: _error != null && _messages.isEmpty
                 ? Center(
@@ -292,10 +234,24 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
 
   Widget _buildBubble(Map<String, dynamic> m) {
     final mine = _isMine(m);
+    final senderName = m['senderName']?.toString() ?? 'User';
+    final roleLabel = _getRoleLabel(m['senderType']?.toString() ?? '');
+    
+    bool isOnline = false;
+    final lastActiveStr = m['lastActiveAt'];
+    if (lastActiveStr != null && lastActiveStr.toString().isNotEmpty) {
+      try {
+        final lastActive = DateTime.parse(lastActiveStr.toString()).toLocal();
+        if (DateTime.now().difference(lastActive).inMinutes <= 2) {
+          isOnline = true;
+        }
+      } catch (_) {}
+    }
+
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.75),
         padding:
@@ -313,6 +269,42 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (!mine)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                            color: isOnline ? Colors.blue : Colors.grey,
+                            shape: BoxShape.circle)),
+                    const SizedBox(width: 4),
+                    Text(
+                      senderName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _dcDarkText,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _dcScreenBg,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        roleLabel,
+                        style: const TextStyle(fontSize: 9, color: _dcMutedText),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (m['imageUrl'] != null && m['imageUrl'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
@@ -331,14 +323,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
                   style: TextStyle(
                       fontSize: 13.5,
                       color: mine ? Colors.white : _dcDarkText)),
-            if (!mine &&
-                (m['senderName'] ?? '').toString().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text(m['senderName'].toString(),
-                    style: const TextStyle(
-                        fontSize: 10.5, color: _dcMutedText)),
-              ),
           ],
         ),
       ),

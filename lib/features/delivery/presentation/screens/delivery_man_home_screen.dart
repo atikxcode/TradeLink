@@ -9,6 +9,8 @@ import '../../../../core/services/api_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import 'delivery_request_details_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../../../marketplace/presentation/screens/order_chat_screen.dart';
 import '../screens/qr_scanner_screen.dart';
 
 class DeliveryManHomeScreen extends StatefulWidget {
@@ -1022,6 +1024,31 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
                       ),
                     if (order['delivery_lat'] != null && order['delivery_lng'] != null)
                       const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => OrderChatScreen(orderId: order['id']),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                          label: const Text('Chat'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF59E0B),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: SizedBox(
                         height: 44,

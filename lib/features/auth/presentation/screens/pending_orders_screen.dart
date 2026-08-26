@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
 import 'track_rider_screen.dart';
 import '../../../../core/config/api_config.dart';
+import '../../../marketplace/presentation/screens/order_chat_screen.dart';
 
 const Color _primaryTeal = Color(0xFF0E7966);
 const Color _softSlateBg = Color(0xFFF8FAFC);
@@ -1004,6 +1005,29 @@ class _SupplierOrderCard extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OrderChatScreen(orderId: orderId),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.group, size: 18),
+                  label: const Text('Group Chat'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
             ] else if (orderStatus == 'searching_for_rider') ...[
               Container(
                 width: double.infinity,
