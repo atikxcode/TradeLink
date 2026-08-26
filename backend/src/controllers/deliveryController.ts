@@ -360,20 +360,42 @@ export async function markOrderDeliveredHandler(req: AuthRequest, res: Response)
     }
 
     await db.query(
-      `UPDATE public.orders SET status = 'delivered' WHERE id = $1`,
+      `UPDATE public.orders SET status = 'delivered', updated_at = now() WHERE id = $1`,
       [orderId]
     );
+
+    // Look up inventory_id for review metadata
+    const invResult = await db.query(
+      `SELECT id FROM public.stockholder_inventory
+       WHERE stockholder_id = $1 AND LOWER(custom_product_name) = (
+         SELECT LOWER(product_name) FROM public.orders WHERE id = $2
+       ) LIMIT 1`,
+      [order.supplier_id, orderId]
+    );
+    const inventoryId = invResult.rows.length > 0 ? invResult.rows[0].id : '';
+
+    // Get product name for notification
+    const orderDetails = await db.query(
+      `SELECT product_name FROM public.orders WHERE id = $1`,
+      [orderId]
+    );
+    const productName = orderDetails.rows[0]?.product_name ?? 'your item';
 
     await db.query(
       `INSERT INTO public.notifications (user_id, title, subtitle, type)
        VALUES ($1, 'Order Delivered', 'Your delivery man has successfully delivered the order.', 'order_update')`,
       [order.supplier_id]
     );
-    
+
+    // Notification for shop owner with review metadata
     await db.query(
       `INSERT INTO public.notifications (user_id, title, subtitle, type)
-       VALUES ($1, 'Order Delivered', 'Your order has been delivered successfully.', 'order_update')`,
-      [order.shop_owner_id]
+       VALUES ($1, $2, $3, 'delivery_confirmed')`,
+      [
+        order.shop_owner_id,
+        'Order Delivered!',
+        `Your order for ${productName} is complete. Tap to leave an optional review.\n|||${orderId}|||${order.supplier_id}|||${inventoryId}`,
+      ]
     );
 
     res.status(200).json({ success: true, message: 'Order marked as delivered' });
