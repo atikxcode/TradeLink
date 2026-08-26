@@ -4,8 +4,8 @@ import { createStock, listStock, updateStock, deleteStock, saveStockImage } from
 /** Persist uploaded bytes in Postgres and return a stable public URL. */
 async function storeImageAndBuildUrl(req, stockId, file) {
     await saveStockImage(stockId, file.mimetype, file.buffer);
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    // `v` busts Flutter's Image.network cache when the image is replaced.
+    const host = req.get('host') || 'tradelink-2.onrender.com';
+    const baseUrl = `https://${host}`;
     return `${baseUrl}/stock-images/${stockId}?v=${Date.now()}`;
 }
 export const publishStock = asyncHandler(async (req, res) => {
@@ -27,16 +27,10 @@ export const publishStock = asyncHandler(async (req, res) => {
     if (body.deliveryRadiusKm) {
         payload.deliveryRadiusKm = Number(body.deliveryRadiusKm);
     }
-    // If image was uploaded, generate public URL
-    if (file) {
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
-        payload.imageUrl = `${baseUrl}/uploads/${file.filename}`;
-    }
-    else if (body.imageUrl) {
+    // If image was uploaded, we'll store bytes and set URL after stock creation
+    // (need the stock id). Don't set a temporary URL here.
+    if (!file && body.imageUrl) {
         payload.imageUrl = String(body.imageUrl);
-    }
-    else {
-        payload.imageUrl = undefined;
     }
     // Validate with zod
     const validatedPayload = createStockSchema.parse(payload);
