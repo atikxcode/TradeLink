@@ -234,7 +234,7 @@ export async function respondToNegotiation(input: {
   negotiationId: string;
   shopOwnerId: string;
   action: 'accept' | 'decline';
-}): Promise<NegotiationDto & { orderCreated?: boolean }> {
+}): Promise<NegotiationDto & { orderCreated?: boolean; orderId?: string | null }> {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
@@ -299,7 +299,7 @@ export async function respondToNegotiation(input: {
     const updated = await db.query(`${SELECT_BASE} WHERE n.id = $1`, [
       input.negotiationId,
     ]);
-    return { ...mapRow(updated.rows[0]), orderCreated: true };
+    return { ...mapRow(updated.rows[0]), orderCreated: true, orderId };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

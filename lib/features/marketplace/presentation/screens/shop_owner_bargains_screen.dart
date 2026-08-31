@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import 'negotiation_chat_screen.dart';
+import 'order_chat_screen.dart';
 
 const Color _bgPrimaryTeal = Color(0xFF0F766E);
 const Color _bgScreenBg = Color(0xFFF8FAFC);
@@ -64,6 +65,7 @@ class _ShopOwnerBargainsScreenState extends State<ShopOwnerBargainsScreen> {
 
     if (result != null) {
       final orderCreated = result['orderCreated'] == true;
+      final orderId = result['orderId'];
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(orderCreated
@@ -76,7 +78,16 @@ class _ShopOwnerBargainsScreenState extends State<ShopOwnerBargainsScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      _fetchNegotiations();
+      if (orderCreated && orderId != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderChatScreen(orderId: orderId),
+          ),
+        ).then((_) => _fetchNegotiations());
+      } else {
+        _fetchNegotiations();
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

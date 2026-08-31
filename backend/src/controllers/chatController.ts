@@ -168,18 +168,18 @@ export const getUserChatsHandler = asyncHandler(
     );
 
     const { rows: orderRows } = await db.query(
-      `SELECT c.id, c.order_id, c.last_message, c.updated_at,
+      `SELECT c.id, o.id AS order_id, c.last_message, COALESCE(c.updated_at, o.created_at) AS updated_at,
               o.shop_owner_id, o.supplier_id, o.delivery_man_id,
               COALESCE(ou.business_name, ou.full_name, 'Shop Owner') AS shop_owner_name,
               COALESCE(su.business_name, su.full_name, 'Supplier') AS supplier_name,
               COALESCE(du.full_name, 'Delivery Rider') AS delivery_man_name
-       FROM public.order_chats c
-       JOIN public.orders o ON o.id = c.order_id
+       FROM public.orders o
+       LEFT JOIN public.order_chats c ON o.id = c.order_id
        LEFT JOIN public.users ou ON ou.id = o.shop_owner_id
        LEFT JOIN public.users su ON su.id = o.supplier_id
        LEFT JOIN public.users du ON du.id = o.delivery_man_id
        WHERE o.${orderColumn} = $1
-       ORDER BY c.updated_at DESC LIMIT 100`,
+       ORDER BY COALESCE(c.updated_at, o.created_at) DESC LIMIT 100`,
       [userId]
     );
 
@@ -195,7 +195,7 @@ export const getUserChatsHandler = asyncHandler(
       productName: 'Order Group Chat',
       productUnit: '',
       counterpartName: 'Group Chat',
-      lastMessage: r.last_message ?? '',
+      lastMessage: r.last_message || 'Order Group Chat created',
       updatedAt: r.updated_at?.toISOString?.() ?? String(r.updated_at),
     }));
 

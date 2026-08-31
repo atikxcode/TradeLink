@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import 'negotiation_chat_screen.dart';
+import 'order_chat_screen.dart';
 
 const Color _siPrimaryTeal = Color(0xFF0F766E);
 const Color _siScreenBg = Color(0xFFF8FAFC);
@@ -71,6 +72,24 @@ class _SupplierNegotiationInboxState extends State<SupplierNegotiationInbox> {
 
     if (!mounted) return;
     setState(() => _actingId = null);
+
+    if (action == 'finalize' && result != null && result['order'] != null) {
+      final orderId = result['order']['id'];
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Deal accepted — order placed!'),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OrderChatScreen(orderId: orderId),
+        ),
+      ).then((_) => _fetchInbox());
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

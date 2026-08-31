@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/api_service.dart';
+import '../../../marketplace/presentation/screens/order_chat_screen.dart';
 import 'incoming_order_screen.dart';
 import 'notifications_screen.dart';
 import 'stock_screen.dart';
@@ -309,10 +310,20 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
       );
       _fetchHomeStats();
       if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const PendingOrdersScreen()),
-        );
+        final orderId = result['order']?['id'];
+        if (orderId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderChatScreen(orderId: orderId),
+            ),
+          );
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const PendingOrdersScreen()),
+          );
+        }
       }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -418,6 +429,10 @@ class _StockholderDashboardState extends State<_StockholderDashboard> {
                           unit: demand['unit'] ?? '',
                           category: demand['category'] ?? '',
                           notes: demand['notes'] ?? '',
+                          targetPrice: demand['targetPrice'],
+                          latitude: demand['latitude'],
+                          longitude: demand['longitude'],
+                          deliveryAddress: demand['deliveryAddress'],
                         ),
                       ),
                     );
@@ -622,7 +637,12 @@ class _DemandCardState extends State<DemandCard> {
         ? (widget.targetPrice as num).toDouble()
         : double.tryParse(widget.targetPrice.toString());
     if (t == null) return 'No budget set';
-    return '৳${t == t.roundToDouble() ? t.toInt().toString() : t.toStringAsFixed(2)}';
+    
+    final total = t * widget.quantity.toDouble();
+    final totalStr = total == total.roundToDouble() ? total.toInt().toString() : total.toStringAsFixed(2);
+    final unitStr = t == t.roundToDouble() ? t.toInt().toString() : t.toStringAsFixed(2);
+    
+    return '৳$totalStr (৳$unitStr/unit)';
   }
 
   @override

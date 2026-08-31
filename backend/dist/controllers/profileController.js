@@ -1,5 +1,5 @@
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { getProfile, updateProfile } from '../services/profileService.js';
+import { getProfile, updateProfile, updateLastActiveAt } from '../services/profileService.js';
 export const getProfileHandler = asyncHandler(async (req, res) => {
     const userId = req.userId;
     const profile = await getProfile(userId);
@@ -39,5 +39,10 @@ export const updateProfileHandler = asyncHandler(async (req, res) => {
         return;
     }
     res.json({ success: true, data: profile });
+});
+export const heartbeatHandler = asyncHandler(async (req, res) => {
+    const userId = req.userId;
+    await updateLastActiveAt(userId);
+    res.json({ success: true });
 });
 //# sourceMappingURL=profileController.js.map

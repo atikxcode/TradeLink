@@ -196,7 +196,7 @@ export async function respondToNegotiation(input) {
         const updated = await db.query(`${SELECT_BASE} WHERE n.id = $1`, [
             input.negotiationId,
         ]);
-        return { ...mapRow(updated.rows[0]), orderCreated: true };
+        return { ...mapRow(updated.rows[0]), orderCreated: true, orderId };
     }
     catch (err) {
         await client.query('ROLLBACK');
