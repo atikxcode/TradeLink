@@ -99,9 +99,10 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id') ?? '';
+      final role = prefs.getString('user_role') ?? 'supplier';
       final uri = Uri.parse('$_baseUrl$path');
       final request = http.MultipartRequest('POST', uri);
-      request.headers['X-User-Id'] = '$userId::supplier';
+      request.headers['X-User-Id'] = '$userId::$role';
       request.fields.addAll(fields);
 
       if (imageBytes != null && imageBytes.isNotEmpty) {

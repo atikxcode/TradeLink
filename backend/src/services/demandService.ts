@@ -109,9 +109,10 @@ export async function acceptDemand(
       unit: string;
       status: string;
       target_supplier_id: string | null;
+      target_price: number | null;
     }>(
       `SELECT id, shop_owner_id, product_name, quantity, unit, status,
-              target_supplier_id
+              target_supplier_id, target_price
        FROM demands WHERE id = $1 FOR UPDATE`,
       [demandId],
     );
@@ -147,7 +148,7 @@ export async function acceptDemand(
       [supplierId, demandRow.product_name],
     );
     const matchedStockId = stockRows[0]?.id ?? null;
-    const pricePerUnit = stockRows[0]?.price_per_unit ?? 0;
+    const pricePerUnit = stockRows[0]?.price_per_unit ?? demandRow.target_price ?? 0;
     const totalAmount = demandRow.quantity * pricePerUnit;
 
     const order = await client.query<OrderRow>(

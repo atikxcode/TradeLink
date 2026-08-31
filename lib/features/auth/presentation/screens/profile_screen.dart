@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
@@ -37,6 +38,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _tradeLicense = '';
   String _minOrderValue = '';
   String _supplyRadius = '';
+  String? _profilePictureUrl;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -65,6 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _tradeLicense = s('tradeLicense');
         _minOrderValue = s('minOrderValue');
         _supplyRadius = s('supplyRadius');
+        _profilePictureUrl = m['profilePictureUrl'];
         _isLoading = false;
       });
     } else if (mounted) {
@@ -205,6 +209,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _pickAndUploadImage() async {
+    if (_isUploadingImage) return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    setState(() => _isUploadingImage = true);
+
+    try {
+      final bytes = await pickedFile.readAsBytes();
+      final result = await ApiService.postMultipart(
+        '/profile/image',
+        fields: {},
+        imageBytes: bytes,
+        imageFileName: pickedFile.name,
+      );
+      
+      if (mounted) {
+        if (result != null && result['profilePictureUrl'] != null) {
+          setState(() {
+            _profilePictureUrl = result['profilePictureUrl'];
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile picture updated successfully'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to update profile picture'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -313,16 +369,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           padding: const EdgeInsets.all(4),
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
+          child: GestureDetector(
+            onTap: _pickAndUploadImage,
             child: CircleAvatar(
-              radius: 44,
-              backgroundColor: _brand,
-              child: Text(_avatarInitials,
-                  style: const TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
+              backgroundColor: Colors.white,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: _brand,
+                    backgroundImage: _profilePictureUrl != null && _profilePictureUrl!.isNotEmpty
+                        ? NetworkImage(_profilePictureUrl!)
+                        : null,
+                    child: _profilePictureUrl == null || _profilePictureUrl!.isEmpty
+                        ? Text(_avatarInitials,
+                            style: const TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white))
+                        : null,
+                  ),
+                  if (_isUploadingImage)
+                    const CircularProgressIndicator(color: Colors.white),
+                ],
+              ),
             ),
           ),
         ),

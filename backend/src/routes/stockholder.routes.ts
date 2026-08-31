@@ -36,7 +36,7 @@ import {
   verifyDeliveryHandler,
 } from '../controllers/orderLifecycleController.js';
 import { getShopOwnerOrdersHandler } from '../controllers/shopOwnerOrderController.js';
-import { getProfileHandler, updateProfileHandler, heartbeatHandler } from '../controllers/profileController.js';
+import { getProfileHandler, updateProfileHandler, heartbeatHandler, uploadProfileImageHandler, getProfileImageHandler } from '../controllers/profileController.js';
 import {
   searchMarketplaceHandler,
   getProductDetailHandler,
@@ -80,7 +80,7 @@ import {
   shopOwnerConfirmDeliveryHandler,
   pickupOrderHandler,
 } from '../controllers/deliveryController.js';
-import { requireSupplier } from '../middleware/auth.js';
+import { requireAuth, requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
 
 // Configure multer for image uploads.
@@ -113,6 +113,8 @@ const router = Router();
 router.get('/profile', getProfileHandler);
 router.patch('/profile', updateProfileHandler);
 router.post('/profile/heartbeat', heartbeatHandler);
+router.post('/profile/image', requireAuth, upload.single('image'), uploadProfileImageHandler);
+router.get('/profile-images/:id', getProfileImageHandler);
 
 // ---- Master Product Catalog ----
 router.get('/master-products', listMasterProductsHandler);

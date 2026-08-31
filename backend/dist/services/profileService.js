@@ -19,13 +19,15 @@ function mapProfileRow(row) {
         totalFulfilled: Number(row.total_fulfilled ?? 0),
         createdAt: row.created_at.toISOString(),
         updatedAt: row.updated_at.toISOString(),
+        lastActiveAt: row.last_active_at ? row.last_active_at.toISOString() : null,
+        profilePictureUrl: row.profile_picture_url,
     };
 }
 export async function getProfile(userId) {
     const { rows } = await db.query(`SELECT id, role, full_name, phone_number, business_name, category,
             trade_license, min_order_value, supply_radius,
             latitude, longitude, address,
-            rating,
+            rating, profile_picture_url,
             (SELECT COUNT(*)::int FROM orders o
               WHERE o.shop_owner_id = users.id
                 AND o.status IN ('accepted','out_for_delivery','in_transit')
@@ -36,7 +38,7 @@ export async function getProfile(userId) {
             (SELECT COUNT(*)::int FROM orders o2
               WHERE o2.supplier_id = users.id AND o2.status = 'delivered'
             ) AS total_fulfilled,
-            created_at, updated_at
+            created_at, updated_at, last_active_at
      FROM users
      WHERE id = $1`, [userId]);
     if (rows.length === 0)
@@ -96,5 +98,25 @@ export async function updateProfile(userId, payload) {
     await db.query(`UPDATE users SET ${fields.join(', ')}
      WHERE id = $${idx}`, [...values, userId]);
     return getProfile(userId);
+}
+export async function updateLastActiveAt(userId) {
+    await db.query(`UPDATE users SET last_active_at = now() WHERE id = $1`, [userId]);
+}
+export async function saveProfileImage(userId, mimeType, data) {
+    await db.query(`INSERT INTO profile_images (user_id, mime_type, data, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (user_id)
+     DO UPDATE SET mime_type = EXCLUDED.mime_type,
+                   data = EXCLUDED.data,
+                   updated_at = now()`, [userId, mimeType, data]);
+}
+export async function getProfileImageRaw(userId) {
+    const { rows } = await db.query(`SELECT mime_type, data FROM profile_images WHERE user_id = $1`, [userId]);
+    if (rows.length === 0)
+        return null;
+    return {
+        mimeType: rows[0].mime_type,
+        data: rows[0].data,
+    };
 }
 //# sourceMappingURL=profileService.js.map
