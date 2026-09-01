@@ -137,18 +137,37 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
     final name = pretty(
       prefs.getString('user_business') ?? prefs.getString('user_name'),
     );
-    final profilePic = prefs.getString('user_profile_pic');
+    String? profilePic = prefs.getString('user_profile_pic');
     
-    setState(() {
-      _businessName = name;
-      _profilePicUrl = profilePic;
-      if (name.isNotEmpty) {
-        final words = name.trim().split(RegExp(r'\s+'));
-        _initials = words.length >= 2
-            ? '${words[0][0]}${words[1][0]}'.toUpperCase()
-            : name.substring(0, name.length.clamp(0, 2)).toUpperCase();
+    try {
+      final userId = prefs.getString('user_id');
+      if (userId != null) {
+        final data = await SupabaseConfig.client
+            .from(SupabaseConfig.tableUsers)
+            .select('profile_picture_url')
+            .eq('id', userId)
+            .maybeSingle();
+        if (data != null && data['profile_picture_url'] != null) {
+          profilePic = data['profile_picture_url'].toString();
+          await prefs.setString('user_profile_pic', profilePic);
+        }
       }
-    });
+    } catch (e) {
+      // Fallback to prefs
+    }
+
+    if (mounted) {
+      setState(() {
+        _businessName = name;
+        _profilePicUrl = profilePic;
+        if (name.isNotEmpty) {
+          final words = name.trim().split(RegExp(r'\s+'));
+          _initials = words.length >= 2
+              ? '${words[0][0]}${words[1][0]}'.toUpperCase()
+              : name.substring(0, name.length.clamp(0, 2)).toUpperCase();
+        }
+      });
+    }
   }
 
   ImageProvider? _getAvatarImage() {

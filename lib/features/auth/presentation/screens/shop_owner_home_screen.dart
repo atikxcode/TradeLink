@@ -55,7 +55,24 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
       inits += words[0][1];
     }
 
-    final profilePic = prefs.getString('user_profile_pic');
+    String? profilePic = prefs.getString('user_profile_pic');
+
+    try {
+      final userId = prefs.getString('user_id');
+      if (userId != null) {
+        final data = await SupabaseConfig.client
+            .from(SupabaseConfig.tableUsers)
+            .select('profile_picture_url')
+            .eq('id', userId)
+            .maybeSingle();
+        if (data != null && data['profile_picture_url'] != null) {
+          profilePic = data['profile_picture_url'].toString();
+          await prefs.setString('user_profile_pic', profilePic);
+        }
+      }
+    } catch (e) {
+      // Fallback to prefs
+    }
 
     if (mounted) {
       setState(() {
