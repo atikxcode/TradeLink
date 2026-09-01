@@ -21,6 +21,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   static const Color _border = Color(0xFFE2E8F0);
 
   late final bool _isSupplier;
+  late final bool _isDeliveryMan;
   late final TextEditingController _nameCtrl;
   late final TextEditingController _businessCtrl;
   late final TextEditingController _phoneCtrl;
@@ -39,6 +40,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final d = widget.initialData;
     String s(String k) => d[k]?.toString() ?? '';
     _isSupplier = (d['role'] ?? '').toString() == 'supplier';
+    _isDeliveryMan = (d['role'] ?? '').toString() == 'delivery_man';
     _nameCtrl = TextEditingController(text: s('fullName'));
     _businessCtrl = TextEditingController(text: s('businessName'));
     _phoneCtrl = TextEditingController(text: s('phoneNumber'));
@@ -93,10 +95,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     final business = _businessCtrl.text.trim();
-    if (name.isEmpty || business.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Name and business name are required.'),
-          backgroundColor: Color(0xFFEF4444),
+    if (name.isEmpty || (!_isDeliveryMan && business.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_isDeliveryMan ? 'Name is required.' : 'Name and business name are required.'),
+          backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating));
       return;
     }
@@ -193,10 +195,12 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             _label('Full name'),
             TextField(controller: _nameCtrl, decoration: _dec('Your name')),
             const SizedBox(height: 16),
-            _label('Business name'),
-            TextField(
-                controller: _businessCtrl, decoration: _dec('Business name')),
-            const SizedBox(height: 16),
+            if (!_isDeliveryMan) ...[
+              _label('Business name'),
+              TextField(
+                  controller: _businessCtrl, decoration: _dec('Business name')),
+              const SizedBox(height: 16),
+            ],
             _label('Phone number'),
             TextField(
               controller: _phoneCtrl,
@@ -204,24 +208,22 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               decoration: _dec('01XXX-XXXXXX'),
             ),
             const SizedBox(height: 16),
-            _label('Category'),
-            DropdownButtonFormField<String>(
-              initialValue: _category,
-              items: const [
-                DropdownMenuItem(value: AppCategories.grocery, child: Text('Grocery')),
-                DropdownMenuItem(value: AppCategories.pharmacy, child: Text('Pharmacy')),
-                DropdownMenuItem(value: AppCategories.hardware, child: Text('Hardware')),
-              ],
-              onChanged: (v) =>
-                  setState(() => _category = v ?? AppCategories.grocery),
-              decoration: _dec('Select category'),
-            ),
-            const SizedBox(height: 16),
-            _label('Delivery address'),
+            if (!_isDeliveryMan) ...[
+              _label('Category'),
+              DropdownButtonFormField<String>(
+                initialValue: AppCategories.allCategories.contains(_category) ? _category : AppCategories.grocery,
+                items: AppCategories.allCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                onChanged: (v) =>
+                    setState(() => _category = v ?? AppCategories.grocery),
+                decoration: _dec('Select category'),
+              ),
+              const SizedBox(height: 16),
+            ],
+            _label(_isDeliveryMan ? 'Your address' : 'Delivery address'),
             TextField(
               controller: _addressCtrl,
               maxLines: 2,
-              decoration: _dec('Shop location / delivery address'),
+              decoration: _dec(_isDeliveryMan ? 'Enter your address' : 'Shop location / delivery address'),
             ),
             const SizedBox(height: 16),
             _label('Map location'),

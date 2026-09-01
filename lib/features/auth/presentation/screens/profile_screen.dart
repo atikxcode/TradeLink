@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
@@ -37,6 +39,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _tradeLicense = '';
   String _minOrderValue = '';
   String _supplyRadius = '';
+  String? _profilePictureUrl;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -50,6 +54,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     final data = await ApiService.get('/profile');
+    
+    // Always attempt to fetch the profile picture directly from Supabase
+    // since the API may not return it correctly (or at all).
+    String? directProfilePicUrl;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      if (userId != null) {
+        final userRow = await SupabaseConfig.client
+            .from(SupabaseConfig.tableUsers)
+            .select('profile_picture_url')
+            .eq('id', userId)
+            .maybeSingle();
+        if (userRow != null && userRow['profile_picture_url'] != null) {
+          directProfilePicUrl = userRow['profile_picture_url'] as String;
+        }
+      }
+    } catch (_) {}
+
     if (!mounted) return;
     if (data != null) {
       final m = Map<String, dynamic>.from(data);
@@ -65,17 +88,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _tradeLicense = s('tradeLicense');
         _minOrderValue = s('minOrderValue');
         _supplyRadius = s('supplyRadius');
+        _profilePictureUrl = directProfilePicUrl ?? m['profilePictureUrl'];
         _isLoading = false;
       });
     } else if (mounted) {
-      await _loadFromPrefs();
+      await _loadFromPrefs(directProfilePicUrl);
     }
   }
 
   bool get _isSupplier => _actualRole == 'supplier';
+  bool get _isDeliveryMan => _actualRole == 'delivery_man';
 
   /// Offline fallback when /profile is unreachable.
-  Future<void> _loadFromPrefs() async {
+  Future<void> _loadFromPrefs(String? directProfilePicUrl) async {
     final prefs = await SharedPreferences.getInstance();
     String pretty(String? raw, String fb) {
       final n = (raw ?? '').trim();
@@ -94,6 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _tradeLicense = prefs.getString('user_trade_license') ?? '';
       _minOrderValue = prefs.getString('user_min_order') ?? '';
       _supplyRadius = prefs.getString('user_supply_radius') ?? '';
+      _profilePictureUrl = directProfilePicUrl ?? _profilePictureUrl;
       _isLoading = false;
     });
   }
@@ -103,9 +129,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? _businessName
         : _fullName.trim();
     if (n.isEmpty || RegExp(r'^\d+$').hasMatch(n)) {
+      if (_isDeliveryMan) return 'Delivery Rider';
       return _isSupplier ? 'My Store' : 'My Shop';
     }
     return n;
+  }
+
+  ImageProvider? _getAvatarImage() {
+    if (_profilePictureUrl == null || _profilePictureUrl!.isEmpty) return null;
+    if (_profilePictureUrl!.startsWith('data:image')) {
+      final base64Str = _profilePictureUrl!.split(',').last;
+      return MemoryImage(base64Decode(base64Str));
+    }
+    return NetworkImage(_profilePictureUrl!);
   }
 
   String get _avatarInitials {
@@ -203,6 +239,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (_) => false,
     );
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    if (_isUploadingImage) return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+      maxWidth: 400,
+      maxHeight: 400,
+    );
+    if (pickedFile == null) return;
+
+    setState(() => _isUploadingImage = true);
+
+    try {
+      final bytes = await pickedFile.readAsBytes();
+      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      if (userId == null) throw Exception('User ID not found');
+
+      await SupabaseConfig.client
+          .from(SupabaseConfig.tableUsers)
+          .update({'profile_picture_url': base64String})
+          .eq('id', userId);
+
+      if (mounted) {
+        setState(() {
+          _profilePictureUrl = base64String;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
   }
 
   @override
@@ -313,16 +401,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           padding: const EdgeInsets.all(4),
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
+          child: GestureDetector(
+            onTap: _pickAndUploadImage,
             child: CircleAvatar(
-              radius: 44,
-              backgroundColor: _brand,
-              child: Text(_avatarInitials,
-                  style: const TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
+              backgroundColor: Colors.white,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: _brand,
+                    backgroundImage: _getAvatarImage(),
+                    child: _profilePictureUrl == null || _profilePictureUrl!.isEmpty
+                        ? Text(_avatarInitials,
+                            style: const TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white))
+                        : null,
+                  ),
+                  if (_isUploadingImage)
+                    const CircularProgressIndicator(color: Colors.white),
+                ],
+              ),
             ),
           ),
         ),
@@ -352,18 +453,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
-            color: _isSupplier
-                ? const Color(0xFFEEF8F6)
-                : const Color(0xFFEFF6FF),
+            color: _isDeliveryMan
+                ? const Color(0xFFFFFBEB) // Amber tint
+                : _isSupplier
+                    ? const Color(0xFFEEF8F6)
+                    : const Color(0xFFEFF6FF),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            _isSupplier ? 'SUPPLIER' : 'SHOP OWNER',
+            _isDeliveryMan ? 'DELIVERY RIDER' : (_isSupplier ? 'SUPPLIER' : 'SHOP OWNER'),
             style: TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
-                color: _isSupplier ? _brand : const Color(0xFF2563EB)),
+                color: _isDeliveryMan
+                    ? const Color(0xFFD97706) // Amber color
+                    : _isSupplier ? _brand : const Color(0xFF2563EB)),
           ),
         ),
       ],
@@ -388,25 +493,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           _tile(Icons.person_outline_rounded, 'Profile Settings',
-              subtitle: 'Name, phone, business details',
+              subtitle: _isDeliveryMan ? 'Name and phone number' : 'Name, phone, business details',
               onTap: _openSettings),
           _divider(),
-          _tile(Icons.location_on_outlined, 'Location & Delivery Address',
+          _tile(Icons.location_on_outlined, _isDeliveryMan ? 'Base Location' : 'Address & Location',
               subtitle: _address.isEmpty ? 'Not set' : _address,
               onTap: _openSettings),
-          _divider(),
-          if (!_isSupplier)
-            _tile(Icons.receipt_long_outlined, 'Order History',
-                onTap: () => _push(const OrdersScreen()))
-          else ...[
-
-            _tile(Icons.account_balance_wallet_outlined,
-                'Manage Withdrawals / Earnings',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                            Text('Withdrawals coming soon — earnings ledger in progress.'),
-                        behavior: SnackBarBehavior.floating))),
+          if (!_isDeliveryMan) ...[
+            _divider(),
+            if (!_isSupplier)
+              _tile(Icons.receipt_long_outlined, 'Order History',
+                  onTap: () => _push(const OrdersScreen()))
+            else
+              _tile(Icons.account_balance_wallet_outlined,
+                  'Manage Withdrawals / Earnings',
+                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content:
+                              Text('Withdrawals coming soon — earnings ledger in progress.'),
+                          behavior: SnackBarBehavior.floating))),
           ],
           _divider(),
           _tile(Icons.settings_outlined, 'Account Settings & Security',

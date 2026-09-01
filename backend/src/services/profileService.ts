@@ -20,6 +20,7 @@ export interface UserProfile {
   createdAt: string;
   updatedAt: string;
   lastActiveAt: string | null;
+  profilePictureUrl: string | null;
 }
 
 interface UserRow {
@@ -42,6 +43,7 @@ interface UserRow {
   created_at: Date;
   updated_at: Date;
   last_active_at: Date | null;
+  profile_picture_url: string | null;
 }
 
 function mapProfileRow(row: UserRow): UserProfile {
@@ -65,6 +67,7 @@ function mapProfileRow(row: UserRow): UserProfile {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     lastActiveAt: row.last_active_at ? row.last_active_at.toISOString() : null,
+    profilePictureUrl: row.profile_picture_url,
   };
 }
 
@@ -73,7 +76,7 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
     `SELECT id, role, full_name, phone_number, business_name, category,
             trade_license, min_order_value, supply_radius,
             latitude, longitude, address,
-            rating,
+            rating, profile_picture_url,
             (SELECT COUNT(*)::int FROM orders o
               WHERE o.shop_owner_id = users.id
                 AND o.status IN ('accepted','out_for_delivery','in_transit')
@@ -173,4 +176,34 @@ export async function updateProfile(
 
 export async function updateLastActiveAt(userId: string): Promise<void> {
   await db.query(`UPDATE users SET last_active_at = now() WHERE id = $1`, [userId]);
+}
+
+export async function saveProfileImage(
+  userId: string,
+  mimeType: string,
+  data: Buffer,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO profile_images (user_id, mime_type, data, updated_at)
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT (user_id)
+     DO UPDATE SET mime_type = EXCLUDED.mime_type,
+                   data = EXCLUDED.data,
+                   updated_at = now()`,
+    [userId, mimeType, data],
+  );
+}
+
+export async function getProfileImageRaw(
+  userId: string,
+): Promise<{ mimeType: string; data: Buffer } | null> {
+  const { rows } = await db.query(
+    `SELECT mime_type, data FROM profile_images WHERE user_id = $1`,
+    [userId],
+  );
+  if (rows.length === 0) return null;
+  return {
+    mimeType: rows[0].mime_type,
+    data: rows[0].data,
+  };
 }

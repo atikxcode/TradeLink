@@ -11,7 +11,7 @@ import { getPendingOrdersHandler, getCompletedOrdersHandler } from '../controlle
 import { createDirectOrderHandler } from '../controllers/directOrderController.js';
 import { acceptOrderHandler, declineOrderHandler, markOutOfDeliveryHandler, verifyDeliveryHandler, } from '../controllers/orderLifecycleController.js';
 import { getShopOwnerOrdersHandler } from '../controllers/shopOwnerOrderController.js';
-import { getProfileHandler, updateProfileHandler, heartbeatHandler } from '../controllers/profileController.js';
+import { getProfileHandler, updateProfileHandler, heartbeatHandler, uploadProfileImageHandler, getProfileImageHandler } from '../controllers/profileController.js';
 import { searchMarketplaceHandler, getProductDetailHandler, getProductsByCategoryHandler, } from '../controllers/marketplaceController.js';
 import { assistantChatHandler, placeChatbotOrderHandler } from '../controllers/assistantController.js';
 import { startChatHandler, getUserChatsHandler, getChatMessagesHandler, sendChatMessageHandler, sendChatImageHandler, } from '../controllers/chatController.js';
@@ -19,7 +19,7 @@ import { getOrderChatMessagesHandler, sendOrderChatMessageHandler, sendOrderChat
 import { initiateNegotiationHandler, getShopOwnerNegotiationsHandler, getSupplierNegotiationsHandler, counterNegotiationHandler, respondToNegotiationHandler, sendNegotiationMessageHandler, getNegotiationMessagesHandler, getSupplierNegotiationsByIdHandler, finalizeNegotiationHandler, } from '../controllers/negotiationController.js';
 import { forecastHandler } from '../controllers/forecastController.js';
 import { acceptRequestHandler, getDeliveryManOrdersHandler, getNearbyRequestsHandler, markOrderDeliveredHandler, registerDeliveryManHandler, requestRiderHandler, cancelRiderRequestHandler, sendDeliveryOtpHandler, notifyArrivalHandler, shopOwnerConfirmDeliveryHandler, pickupOrderHandler, } from '../controllers/deliveryController.js';
-import { requireSupplier } from '../middleware/auth.js';
+import { requireAuth, requireSupplier } from '../middleware/auth.js';
 import debugRoutes from './debug.routes.js';
 // Configure multer for image uploads.
 // memoryStorage: bytes go into Postgres (stock_images) so they survive
@@ -44,6 +44,8 @@ const router = Router();
 router.get('/profile', getProfileHandler);
 router.patch('/profile', updateProfileHandler);
 router.post('/profile/heartbeat', heartbeatHandler);
+router.post('/profile/image', requireAuth, upload.single('image'), uploadProfileImageHandler);
+router.get('/profile-images/:id', getProfileImageHandler);
 // ---- Master Product Catalog ----
 router.get('/master-products', listMasterProductsHandler);
 // ---- Inventory Search (AI chatbot sourcing) ----

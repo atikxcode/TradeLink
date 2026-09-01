@@ -8,6 +8,7 @@ import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../auth/presentation/screens/profile_screen.dart';
 import 'delivery_request_details_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../marketplace/presentation/screens/order_chat_screen.dart';
@@ -805,11 +806,27 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DeliveryRequestDetailsScreen(
+                  request: order,
+                  riderLocation: _currentLocation,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             Row(
               children: [
                 Container(
@@ -1069,7 +1086,9 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
                 ),
               ],
             ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -1079,7 +1098,7 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
-      body: SafeArea(
+      body: _currentIndex == 2 ? const ProfileScreen() : SafeArea(
         child: Column(
           children: [
             // Header
@@ -1177,6 +1196,12 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
                   activeIcon: Icons.inventory_2_rounded,
                   label: 'My Deliveries',
                   badge: _myDeliveries.where((d) => d['status'] != 'delivered').length,
+                ),
+                _buildNavItem(
+                  index: 2,
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  label: 'Profile',
                 ),
               ],
             ),

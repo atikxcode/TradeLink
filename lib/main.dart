@@ -3,6 +3,7 @@ import 'core/config/firebase_config.dart';
 import 'core/config/supabase_config.dart';
 import 'core/constants/app_colors.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/maintenance_screen.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -59,6 +60,38 @@ class _AuthWrapperState extends State<AuthWrapper> {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
     final role = prefs.getString('user_role');
+
+    if (!mounted) return;
+
+    try {
+      final settings = await SupabaseConfig.client
+          .from('system_settings')
+          .select()
+          .eq('id', 1)
+          .maybeSingle();
+
+      if (settings != null) {
+        final bool fullMaintenance = settings['maintenance_mode_full'] == true;
+        bool roleMaintenance = false;
+
+        if (role == 'shop_owner') {
+          roleMaintenance = settings['maintenance_mode_shop_owner'] == true;
+        } else if (role == 'supplier') {
+          roleMaintenance = settings['maintenance_mode_supplier'] == true;
+        } else if (role == 'delivery_man') {
+          roleMaintenance = settings['maintenance_mode_delivery_man'] == true;
+        }
+
+        if (fullMaintenance || roleMaintenance) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const MaintenanceScreen()),
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      // If error fetching settings, gracefully continue or block depending on security. We continue.
+    }
 
     if (!mounted) return;
 

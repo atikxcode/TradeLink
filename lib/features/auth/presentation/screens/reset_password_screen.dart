@@ -1,90 +1,36 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../delivery/presentation/screens/delivery_man_home_screen.dart';
-import '../../../../features/delivery/presentation/screens/delivery_man_register_screen.dart';
-import 'forgot_password_screen.dart';
 
-class DeliveryLoginScreen extends StatefulWidget {
-  const DeliveryLoginScreen({Key? key}) : super(key: key);
+class ResetPasswordScreen extends StatefulWidget {
+  final String phoneNumber;
+
+  const ResetPasswordScreen({
+    super.key,
+    required this.phoneNumber,
+  });
 
   @override
-  State<DeliveryLoginScreen> createState() => _DeliveryLoginScreenState();
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
-class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
-  Future<void> _checkRegistrationAndNavigate() async {
-    setState(() => _isLoading = true);
-    try {
-      final settings = await SupabaseConfig.client
-          .from('system_settings')
-          .select('allow_new_registrations')
-          .eq('id', 1)
-          .maybeSingle();
-      
-      if (mounted) setState(() => _isLoading = false);
-
-      if (settings != null && settings['allow_new_registrations'] == false) {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Registration Paused'),
-              content: const Text('New registrations are currently paused. Please try again later.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('OK', style: TextStyle(color: AppColors.primaryTeal)),
-                ),
-              ],
-            ),
-          );
-        }
-        return;
-      }
-      
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DeliveryManRegisterScreen()),
-        );
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DeliveryManRegisterScreen()),
-        );
-      }
-    }
-  }
-
-  String? _formatPhoneNumber(String raw) {
-    String p = raw.replaceAll(RegExp(r'\D'), '');
-    if (p.startsWith('88')) p = p.substring(2);
-    if (p.length == 11 && p.startsWith('01')) return p;
-    return null;
-  }
-
-  Future<void> _handleLogin() async {
-    final rawPhone = _phoneController.text.trim();
+  Future<void> _handleReset() async {
     final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
 
-    final phone = _formatPhoneNumber(rawPhone);
-
-    if (phone == null) {
+    if (password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid 11-digit phone number.'),
+          content: Text('Please fill in both password fields.'),
           backgroundColor: AppColors.cancelled,
           behavior: SnackBarBehavior.floating,
         ),
@@ -92,10 +38,21 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
       return;
     }
 
-    if (password.isEmpty) {
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter your password.'),
+          content: Text('Passwords do not match.'),
+          backgroundColor: AppColors.cancelled,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters long.'),
           backgroundColor: AppColors.cancelled,
           behavior: SnackBarBehavior.floating,
         ),
@@ -110,51 +67,28 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
       final digest = sha256.convert(bytes);
       final hashedPassword = digest.toString();
 
-      final users = await SupabaseConfig.client
+      await SupabaseConfig.client
           .from(SupabaseConfig.tableUsers)
-          .select()
-          .eq('phone_number', phone)
-          .eq('password_hash', hashedPassword)
-          .eq('role', 'delivery_man')
-          .limit(1);
-
-      if ((users as List).isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid delivery man phone number or password.'),
-            backgroundColor: AppColors.cancelled,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-
-      final user = users[0];
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_id', user['id']?.toString() ?? '');
-      await prefs.setString('user_name', user['full_name']?.toString() ?? '');
-      await prefs.setString('user_role', 'delivery_man');
-      await prefs.setString('user_phone', user['phone_number']?.toString() ?? phone);
+          .update({'password_hash': hashedPassword})
+          .eq('phone_number', widget.phoneNumber);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Welcome back, ${user['full_name']}!'),
+        const SnackBar(
+          content: Text('Password reset successfully! Please log in.'),
           backgroundColor: AppColors.primaryTeal,
           behavior: SnackBarBehavior.floating,
         ),
       );
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const DeliveryManHomeScreen()),
-      );
+      // Navigate back to login
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Login error: ${e.toString()}'),
+          content: Text('Error resetting password: ${e.toString()}'),
           backgroundColor: AppColors.cancelled,
           behavior: SnackBarBehavior.floating,
         ),
@@ -200,11 +134,11 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade700,
+                        color: AppColors.primaryTeal,
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: const Icon(
-                        Icons.delivery_dining,
+                        Icons.password_rounded,
                         color: Colors.white,
                         size: 34,
                       ),
@@ -212,7 +146,7 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Delivery Man Login',
+                    'Reset Password',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
@@ -222,7 +156,7 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Sign in to manage your deliveries',
+                    'Create a new password for your account',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
@@ -232,35 +166,7 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                   ),
                   const SizedBox(height: 32),
                   const Text(
-                    'Phone number',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      hintText: '01XXXXXXXXX',
-                      filled: true,
-                      fillColor: AppColors.inputBackground,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.inputBorder, width: 1),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.primaryTeal, width: 1.8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Password',
+                    'New Password',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -293,25 +199,38 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ForgotPasswordScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Forgot password?',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.orange,
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Confirm Password',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      hintText: '••••••••',
+                      filled: true,
+                      fillColor: AppColors.inputBackground,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          color: AppColors.textSecondary,
                         ),
+                        onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.inputBorder, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.primaryTeal, width: 1.8),
                       ),
                     ),
                   ),
@@ -319,9 +238,9 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleLogin,
+                      onPressed: _isLoading ? null : _handleReset,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange.shade700,
+                        backgroundColor: AppColors.primaryTeal,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -331,34 +250,8 @@ class _DeliveryLoginScreenState extends State<DeliveryLoginScreen> {
                               width: 22,
                               child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                             )
-                          : const Text('Log in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          : const Text('Reset Password', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Register Link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        "Don't have an account?",
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _checkRegistrationAndNavigate,
-                        child: const Text(
-                          'Register Now',
-                          style: TextStyle(
-                            color: AppColors.primaryTeal,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
