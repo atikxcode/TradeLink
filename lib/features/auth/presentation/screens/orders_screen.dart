@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
@@ -274,89 +273,6 @@ class _ShopOwnerOrderCard extends StatelessWidget {
             ),
           ],
 
-          // OTP section for out_for_delivery status
-          if (status == 'out_for_delivery' || status == 'in_transit') ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFDE68A)),
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.local_shipping_outlined, size: 20, color: Color(0xFFD97706)),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Delivery is on the way!',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF92400E),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (deliveryOtp != null && deliveryOtp!.isNotEmpty) ...[
-                    const Text(
-                      'Your delivery OTP:',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFF59E0B)),
-                      ),
-                      child: Text(
-                        deliveryOtp!,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 6,
-                          color: Color(0xFFD97706),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFF59E0B)),
-                      ),
-                      child: Column(
-                        children: [
-                          QrImageView(
-                            data: deliveryOtp!,
-                            size: 140,
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF0F172A),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Show this QR code to the delivery person to confirm delivery.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    const Text(
-                      'OTP will appear here once the supplier marks out for delivery.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Color(0xFF92400E)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
