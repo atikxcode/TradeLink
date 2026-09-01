@@ -268,6 +268,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update({'profile_picture_url': base64String})
           .eq('id', userId);
 
+      await prefs.setString('user_profile_pic', base64String);
+
       if (mounted) {
         setState(() {
           _profilePictureUrl = base64String;
