@@ -173,6 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('user_phone', user['phone_number']?.toString() ?? phone);
       await prefs.setString('user_category', user['category']?.toString() ?? 'Grocery');
       await prefs.setString('user_address', user['address']?.toString() ?? '');
+      await prefs.setString('user_profile_pic', user['profile_picture_url']?.toString() ?? '');
 
       if (!mounted) return;
 

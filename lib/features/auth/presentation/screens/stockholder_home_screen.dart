@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/api_service.dart';
 import '../../../marketplace/presentation/screens/order_chat_screen.dart';
 import 'incoming_order_screen.dart';
@@ -117,6 +118,7 @@ class _StockholderHeader extends StatefulWidget {
 class _StockholderHeaderState extends State<_StockholderHeader> {
   String _businessName = '';
   String _initials = 'S';
+  String? _profilePicUrl;
 
   @override
   void initState() {
@@ -136,15 +138,46 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
     final name = pretty(
       prefs.getString('user_business') ?? prefs.getString('user_name'),
     );
-    setState(() {
-      _businessName = name;
-      if (name.isNotEmpty) {
-        final words = name.trim().split(RegExp(r'\s+'));
-        _initials = words.length >= 2
-            ? '${words[0][0]}${words[1][0]}'.toUpperCase()
-            : name.substring(0, name.length.clamp(0, 2)).toUpperCase();
+    String? profilePic = prefs.getString('user_profile_pic');
+    
+    try {
+      final userId = prefs.getString('user_id');
+      if (userId != null) {
+        final data = await SupabaseConfig.client
+            .from(SupabaseConfig.tableUsers)
+            .select('profile_picture_url')
+            .eq('id', userId)
+            .maybeSingle();
+        if (data != null && data['profile_picture_url'] != null) {
+          profilePic = data['profile_picture_url'].toString();
+          await prefs.setString('user_profile_pic', profilePic);
+        }
       }
-    });
+    } catch (e) {
+      // Fallback to prefs
+    }
+
+    if (mounted) {
+      setState(() {
+        _businessName = name;
+        _profilePicUrl = profilePic;
+        if (name.isNotEmpty) {
+          final words = name.trim().split(RegExp(r'\s+'));
+          _initials = words.length >= 2
+              ? '${words[0][0]}${words[1][0]}'.toUpperCase()
+              : name.substring(0, name.length.clamp(0, 2)).toUpperCase();
+        }
+      });
+    }
+  }
+
+  ImageProvider? _getAvatarImage() {
+    if (_profilePicUrl == null || _profilePicUrl!.isEmpty) return null;
+    if (_profilePicUrl!.startsWith('data:image')) {
+      final base64Str = _profilePicUrl!.split(',').last;
+      return MemoryImage(base64Decode(base64Str));
+    }
+    return NetworkImage(_profilePicUrl!);
   }
 
   @override
@@ -153,27 +186,32 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                _initials,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.transparent,
+            backgroundImage: _getAvatarImage(),
+            child: _profilePicUrl == null || _profilePicUrl!.isEmpty
+                ? Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _initials,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(

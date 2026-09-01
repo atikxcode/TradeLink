@@ -74,22 +74,39 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
           .maybeSingle();
       
       if (order != null) {
+        String? orderChatId;
         try {
-          await SupabaseConfig.client.from('chats').upsert({
-            'id': widget.orderId,
-            'shop_owner_id': order['shop_owner_id'],
-            'stockholder_id': order['supplier_id'],
-            'product_id': widget.orderId,
-            'last_message': 'Chat started',
-          });
-        } catch (_) {}
+          final existingChat = await SupabaseConfig.client
+              .from('order_chats')
+              .select('id')
+              .eq('order_id', widget.orderId)
+              .maybeSingle();
 
-        _messagesSubscription = SupabaseConfig.client
-            .from('messages')
-            .stream(primaryKey: ['id'])
-            .eq('chat_id', widget.orderId)
-            .order('created_at', ascending: true)
-            .listen((List<Map<String, dynamic>> rawMessages) async {
+          if (existingChat != null) {
+            orderChatId = existingChat['id'];
+          } else {
+            final newChat = await SupabaseConfig.client
+                .from('order_chats')
+                .insert({
+                  'order_id': widget.orderId,
+                  'last_message': 'Chat started',
+                })
+                .select('id')
+                .single();
+            orderChatId = newChat['id'];
+          }
+        } catch (e) {
+          print('Error initializing order chat: $e');
+          if (mounted) setState(() => _error = 'Failed to init chat DB: $e');
+        }
+
+        if (orderChatId != null) {
+          _messagesSubscription = SupabaseConfig.client
+              .from('order_messages')
+              .stream(primaryKey: ['id'])
+              .eq('order_chat_id', orderChatId)
+              .order('created_at', ascending: true)
+              .listen((List<Map<String, dynamic>> rawMessages) async {
               List<Map<String, dynamic>> parsedMessages = [];
               
               for (var m in rawMessages) {
@@ -119,6 +136,9 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
               });
               _scrollToBottom();
             });
+        } else {
+          if (mounted && _error == null) setState(() => _error = 'Failed to initialize chat');
+        }
       } else {
         if (mounted) setState(() => _error = 'Order not found');
       }
@@ -134,14 +154,22 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
     setState(() => _sending = true);
     
     try {
-      await SupabaseConfig.client.from('messages').insert({
-        'chat_id': widget.orderId,
-        'sender_id': _myUserId,
-        'sender_type': _myRole.toUpperCase(),
-        'text_content': text,
-      });
-      if (mounted) {
-        _inputController.clear();
+      final orderChatRes = await SupabaseConfig.client
+          .from('order_chats')
+          .select('id')
+          .eq('order_id', widget.orderId)
+          .maybeSingle();
+          
+      if (orderChatRes != null) {
+        await SupabaseConfig.client.from('order_messages').insert({
+          'order_chat_id': orderChatRes['id'],
+          'sender_id': _myUserId,
+          'sender_type': _myRole.toUpperCase() == 'DELIVERY_MAN' ? 'DELIVERY_RIDER' : _myRole.toUpperCase(),
+          'text_content': text,
+        });
+        if (mounted) {
+          _inputController.clear();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -164,12 +192,21 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
       final bytes = await picked.readAsBytes();
       final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       
-      await SupabaseConfig.client.from('messages').insert({
-        'chat_id': widget.orderId,
-        'sender_id': _myUserId,
-        'sender_type': _myRole.toUpperCase(),
-        'image_url': base64String,
-      });
+      final orderChatRes = await SupabaseConfig.client
+          .from('order_chats')
+          .select('id')
+          .eq('order_id', widget.orderId)
+          .maybeSingle();
+
+      if (orderChatRes != null) {
+        await SupabaseConfig.client.from('order_messages').insert({
+          'order_chat_id': orderChatRes['id'],
+          'sender_id': _myUserId,
+          'sender_type': _myRole.toUpperCase() == 'DELIVERY_MAN' ? 'DELIVERY_RIDER' : _myRole.toUpperCase(),
+          'image_url': base64String,
+          'text_content': ' ', // Adding space to pass any text_content constraints if they require non-empty even with image_url in some older schema
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
