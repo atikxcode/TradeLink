@@ -28,7 +28,6 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   String _initials = 'SO';
   String? _profilePicUrl;
   int _unreadCount = 0;
-  Timer? _qrPollTimer;
 
   Future<void> _loadUserProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -101,7 +100,6 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     super.initState();
     _loadUserProfile();
     _fetchUnreadCount();
-    _startQrPolling();
     _tabs = [
       ShopOwnerDashboard(
         key: _dashboardKey,
@@ -123,26 +121,8 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     ];
   }
 
-  void _startQrPolling() {
-    _qrPollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      final res = await ApiService.get('/notifications');
-      if (res != null) {
-        final notifications = res as List;
-        final qrRequest = notifications.firstWhere((n) => n['type'] == 'qr_scan_request' && n['is_read'] != true, orElse: () => null);
-        if (qrRequest != null) {
-          // Mark as read so we don't pop it up again
-          await ApiService.patch('/notifications/${qrRequest['id']}/read', body: {});
-          if (mounted) {
-            _openQrScanner();
-          }
-        }
-      }
-    });
-  }
-
   @override
   void dispose() {
-    _qrPollTimer?.cancel();
     super.dispose();
   }
 
