@@ -1,0 +1,1 @@
+import 'dart:io'; import 'package:supabase/supabase.dart'; void main() async { final client = SupabaseClient('https://osnhftjsormgodsabdbn.supabase.co', 'sb_publishable_bvnSN_9uLtF61yHTXCfQug_1bTOY77l'); final res = await client.from('users').select('id, business_name, profile_picture_url').eq('business_name', 'Test Shop'); print(res); }
