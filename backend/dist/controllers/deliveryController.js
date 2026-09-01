@@ -205,29 +205,13 @@ export async function pickupOrderHandler(req, res) {
         if (order.status !== 'accepted') {
             return res.status(400).json({ success: false, error: `Order is already ${order.status}` });
         }
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
         await db.query(`UPDATE public.orders
-       SET status = 'out_for_delivery', delivery_otp = $1, updated_at = now()
-       WHERE id = $2`, [otp, orderId]);
-        await db.query(`INSERT INTO otps (order_id, otp_code)
-       VALUES ($1, $2)
-       ON CONFLICT (order_id)
-       DO UPDATE SET otp_code = EXCLUDED.otp_code,
-                     is_verified = false,
-                     expires_at = now() + interval '24 hours'`, [orderId, otp]);
+       SET status = 'out_for_delivery', updated_at = now()
+       WHERE id = $1`, [orderId]);
         // Notify supplier
         await db.query(`INSERT INTO public.notifications (user_id, title, subtitle, type)
        VALUES ($1, 'Order Picked Up', 'The delivery man has picked up the order and is on the way.', 'order_update')`, [order.supplier_id]);
-        // Notify shop owner with OTP
-        const userRes = await db.query(`SELECT phone_number FROM public.users WHERE id = $1`, [order.shop_owner_id]);
-        const phone = userRes.rows[0]?.phone_number;
-        if (phone) {
-            const { sendSms } = await import('../services/smsService.js');
-            sendSms(phone, `TradeLink: Your delivery OTP is ${otp} for ${order.product_name}. Share this 6-digit code with the delivery person.`);
-        }
-        await db.query(`INSERT INTO public.notifications (user_id, title, subtitle, type)
-       VALUES ($1, 'Out for Delivery', $2, 'delivery_otp')`, [order.shop_owner_id, `Your delivery OTP is ${otp}. Share this code with the delivery person upon arrival.`]);
-        res.status(200).json({ success: true, message: 'Order picked up. OTP sent to shop owner.', data: { otp } });
+        res.status(200).json({ success: true, message: 'Order picked up and is on the way.', data: {} });
     }
     catch (error) {
         console.error('Error picking up order:', error);
@@ -358,6 +342,26 @@ export async function sendDeliveryOtpHandler(req, res) {
     }
     catch (error) {
         console.error('Error sending delivery OTP:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+}
+/**
+ * Delivery Man requests the shop owner to scan their QR code
+ */
+export async function requestQrScanHandler(req, res) {
+    try {
+        const deliveryManId = req.userId;
+        const { id: orderId } = req.params;
+        const orderCheck = await db.query(`SELECT id, shop_owner_id FROM public.orders WHERE id = $1 AND delivery_man_id = $2`, [orderId, deliveryManId]);
+        if (orderCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+        await db.query(`INSERT INTO public.notifications (user_id, title, subtitle, type)
+       VALUES ($1, 'Scan QR Code', 'The delivery rider is waiting for you to scan their QR code to complete the delivery.', 'qr_scan_request')`, [orderCheck.rows[0].shop_owner_id]);
+        res.status(200).json({ success: true, message: 'Requested QR scan', data: {} });
+    }
+    catch (error) {
+        console.error('Error requesting QR scan:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
     }
 }

@@ -264,13 +264,13 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
             const SizedBox(height: 12),
             _buildCompletionOption(
               ctx,
-              icon: Icons.qr_code_scanner,
-              title: 'Scan QR Code',
-              subtitle: 'Scan the shop owner\'s QR code to confirm',
+              icon: Icons.qr_code,
+              title: 'Show QR Code',
+              subtitle: 'Shop owner scans your QR code to confirm',
               color: const Color(0xFF2563EB),
               onTap: () {
                 Navigator.pop(ctx);
-                _scanQrAndVerify(orderId);
+                _showQrCodeDialog(orderId);
               },
             ),
           ],
@@ -325,14 +325,94 @@ class _DeliveryManHomeScreenState extends State<DeliveryManHomeScreen> with Widg
     );
   }
 
-  Future<void> _scanQrAndVerify(String orderId) async {
-    final otp = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
-    );
+  Future<void> _showQrCodeDialog(String orderId) async {
+    setState(() => _isLoading = true);
+    final res = await ApiService.post('/orders/$orderId/request-qr', body: {});
+    setState(() => _isLoading = false);
 
-    if (otp != null && otp.trim().isNotEmpty) {
-      _processOtp(orderId, otp.trim(), isQrScan: true);
+    if (res != null) {
+      if (!mounted) return;
+
+      Timer? statusTimer;
+
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          statusTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+            final orderData = await ApiService.get('/delivery/orders');
+            if (orderData != null) {
+              final myOrder = (orderData as List).firstWhere((o) => o['id'] == orderId, orElse: () => null);
+              if (myOrder != null && myOrder['status'] == 'delivered') {
+                timer.cancel();
+                if (Navigator.canPop(ctx)) {
+                  Navigator.pop(ctx);
+                }
+                _fetchMyDeliveries();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Order delivered successfully via QR Scan!'),
+                    backgroundColor: AppColors.primaryTeal,
+                  ));
+                }
+              }
+            }
+          });
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Delivery QR Code', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Ask the shop owner to scan this code with their app to complete the delivery.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 24),
+                  QrImageView(
+                    data: '{"type":"delivery","orderId":"$orderId"}',
+                    version: QrVersions.auto,
+                    size: 200.0,
+                    foregroundColor: AppColors.textPrimary,
+                  ),
+                  const SizedBox(height: 24),
+                  const CircularProgressIndicator(color: AppColors.primaryTeal, strokeWidth: 2),
+                  const SizedBox(height: 12),
+                  const Text('Waiting for shop owner to scan...', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        side: const BorderSide(color: AppColors.inputBorder),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ).then((_) {
+        statusTimer?.cancel();
+      });
+
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Failed to request QR scan.'),
+        backgroundColor: AppColors.cancelled,
+      ));
     }
   }
 

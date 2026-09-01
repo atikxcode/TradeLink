@@ -76,6 +76,7 @@ import {
   requestRiderHandler,
   cancelRiderRequestHandler,
   sendDeliveryOtpHandler,
+  requestQrScanHandler,
   notifyArrivalHandler,
   shopOwnerConfirmDeliveryHandler,
   pickupOrderHandler,
@@ -167,6 +168,7 @@ router.get('/delivery/orders', getDeliveryManOrdersHandler); // authenticated as
 router.patch('/delivery/orders/:id/pickup', pickupOrderHandler); // authenticated as delivery_man
 router.patch('/delivery/orders/:id/status', markOrderDeliveredHandler); // authenticated as delivery_man
 router.post('/orders/:id/send-otp', sendDeliveryOtpHandler); // authenticated as delivery_man
+router.post('/orders/:id/request-qr', requestQrScanHandler); // authenticated as delivery_man
 router.post('/orders/:id/notify-arrival', notifyArrivalHandler); // authenticated as delivery_man
 router.post('/orders/:id/confirm-delivery', shopOwnerConfirmDeliveryHandler); // authenticated as shop_owner
 

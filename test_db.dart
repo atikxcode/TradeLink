@@ -1,0 +1,1 @@
+import 'dart:io'; import 'package:supabase/supabase.dart'; void main() async { final client = SupabaseClient('https://osnhftjsormgodsabdbn.supabase.co', 'sb_publishable_bvnSN_9uLtF61yHTXCfQug_1bTOY77l'); try { final res = await client.from('order_chats').insert({'order_id': '25bfc040-6d87-447e-93e3-c8eb7035eedd'}).select(); print(res); } catch (e) { print(e); } }

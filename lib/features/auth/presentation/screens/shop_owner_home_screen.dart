@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -11,6 +13,7 @@ import 'orders_screen.dart';
 import 'profile_screen.dart';
 import 'tradelink_assistant_screen.dart';
 import '../../../marketplace/presentation/screens/conversations_screen.dart';
+import '../../../delivery/presentation/screens/qr_scanner_screen.dart';
 
 class ShopOwnerHomeScreen extends StatefulWidget {
   const ShopOwnerHomeScreen({super.key});
@@ -24,8 +27,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   String _businessName = 'My Shop';
   String _initials = 'SO';
   int _unreadCount = 0;
-
-
+  Timer? _qrPollTimer;
 
   Future<void> _loadUserProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -78,6 +80,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     super.initState();
     _loadUserProfile();
     _fetchUnreadCount();
+    _startQrPolling();
     _tabs = [
       ShopOwnerDashboard(
         key: _dashboardKey,
@@ -97,6 +100,68 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
       ),
       const ProfileScreen(),
     ];
+  }
+
+  void _startQrPolling() {
+    _qrPollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      final res = await ApiService.get('/notifications');
+      if (res != null) {
+        final notifications = res as List;
+        final qrRequest = notifications.firstWhere((n) => n['type'] == 'qr_scan_request' && n['is_read'] != true, orElse: () => null);
+        if (qrRequest != null) {
+          // Mark as read so we don't pop it up again
+          await ApiService.patch('/notifications/${qrRequest['id']}/read', body: {});
+          if (mounted) {
+            _openQrScanner();
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _qrPollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _openQrScanner() async {
+    if (!mounted) return;
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QRScannerScreen()),
+    );
+    if (result != null && result.isNotEmpty) {
+      try {
+        final data = jsonDecode(result);
+        if (data['type'] == 'delivery' && data['orderId'] != null) {
+          _confirmDelivery(data['orderId']);
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Invalid QR code.'),
+            backgroundColor: AppColors.cancelled,
+          ));
+        }
+      }
+    }
+  }
+
+  Future<void> _confirmDelivery(String orderId) async {
+    final res = await ApiService.post('/orders/$orderId/confirm-delivery', body: {});
+    if (res != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Delivery confirmed successfully!'),
+        backgroundColor: AppColors.primaryTeal,
+      ));
+      _dashboardKey.currentState?._fetchDashboardData();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Failed to confirm delivery.'),
+        backgroundColor: AppColors.cancelled,
+      ));
+    }
   }
 
   @override
@@ -230,6 +295,19 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
                     ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _openQrScanner,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.qr_code_scanner, color: AppColors.primaryTeal),
             ),
           ),
         ],

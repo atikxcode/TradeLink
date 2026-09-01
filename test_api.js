@@ -1,0 +1,1 @@
+fetch('http://localhost:3000/api/orders/25bfc940-6d87-447e-93e3-c8eb7935eedd/request-qr', { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(r => r.json()).then(console.log).catch(console.error);
