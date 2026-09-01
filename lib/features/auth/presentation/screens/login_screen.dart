@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'delivery_login_screen.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 import 'shop_owner_home_screen.dart';
 import 'stockholder_home_screen.dart';
@@ -24,6 +25,61 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  Future<void> _checkRegistrationAndNavigate() async {
+    setState(() => _isLoading = true);
+    try {
+      final settings = await SupabaseConfig.client
+          .from('system_settings')
+          .select('allow_new_registrations')
+          .eq('id', 1)
+          .maybeSingle();
+      
+      if (mounted) setState(() => _isLoading = false);
+
+      if (settings != null && settings['allow_new_registrations'] == false) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Registration Paused'),
+              content: const Text('New registrations are currently paused. Please try again later.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('OK', style: TextStyle(color: AppColors.primaryTeal)),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+      
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegisterScreen(
+              initialRole: _selectedRole,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegisterScreen(
+              initialRole: _selectedRole,
+            ),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -380,10 +436,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             alignment: Alignment.centerRight,
                             child: GestureDetector(
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Forgot Password clicked'),
-                                    duration: Duration(seconds: 2),
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ForgotPasswordScreen(),
                                   ),
                                 );
                               },
@@ -423,16 +479,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => RegisterScreen(
-                                        initialRole: _selectedRole,
-                                      ),
-                                    ),
-                                  );
-                                },
+                                  onTap: _checkRegistrationAndNavigate,
                                 child: const Text(
                                   'Register',
                                   style: TextStyle(

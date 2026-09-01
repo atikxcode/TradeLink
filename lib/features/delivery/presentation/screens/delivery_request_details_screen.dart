@@ -6,13 +6,13 @@ import '../../../../core/constants/app_colors.dart';
 class DeliveryRequestDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> request;
   final LatLng? riderLocation;
-  final VoidCallback onAccept;
+  final VoidCallback? onAccept;
 
   const DeliveryRequestDetailsScreen({
     super.key,
     required this.request,
     required this.riderLocation,
-    required this.onAccept,
+    this.onAccept,
   });
 
   Future<void> _openMap(double lat, double lng) async {
@@ -142,7 +142,7 @@ class DeliveryRequestDetailsScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: onAccept != null ? Container(
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -161,7 +161,7 @@ class DeliveryRequestDetailsScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  onAccept();
+                  onAccept!();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryTeal,
@@ -181,7 +181,7 @@ class DeliveryRequestDetailsScreen extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      ) : null,
     );
   }
 

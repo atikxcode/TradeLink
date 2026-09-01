@@ -4,8 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import 'dart:typed_data';
 import '../../../../core/config/api_config.dart';
+import '../../../../core/config/supabase_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _dcPrimaryTeal = Color(0xFF0F766E);
 const Color _dcScreenBg = Color(0xFFF8FAFC);
@@ -29,7 +32,8 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
   bool _sending = false;
   String _myRole = '';
   String _myUserId = '';
-  Timer? _pollTimer;
+  Map<String, String> _userNames = {};
+  StreamSubscription? _messagesSubscription;
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -37,13 +41,12 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
   void initState() {
     super.initState();
     _loadMyContext();
-    _fetchThread();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fetchThread());
+    _initializeChat();
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    _messagesSubscription?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -62,20 +65,65 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
     return (m['senderId']?.toString() == _myUserId);
   }
 
-  Future<void> _fetchThread() async {
-    final data = await ApiService.get('/orders/${widget.orderId}/chat/messages');
-    if (data != null && mounted) {
-      setState(() {
-        _chat = Map<String, dynamic>.from(data['chat'] ?? {});
-        _messages = List<Map<String, dynamic>>.from(data['messages'] ?? []);
-        _error = null;
-      });
-      // Scroll to bottom only if user hasn't scrolled up, but for simplicity:
-      if (_messages.isNotEmpty && _scrollController.hasClients) {
-        // Keep to bottom
+  Future<void> _initializeChat() async {
+    try {
+      final order = await SupabaseConfig.client
+          .from(SupabaseConfig.tableOrders)
+          .select('shop_owner_id, supplier_id')
+          .eq('id', widget.orderId)
+          .maybeSingle();
+      
+      if (order != null) {
+        try {
+          await SupabaseConfig.client.from('chats').upsert({
+            'id': widget.orderId,
+            'shop_owner_id': order['shop_owner_id'],
+            'stockholder_id': order['supplier_id'],
+            'product_id': widget.orderId,
+            'last_message': 'Chat started',
+          });
+        } catch (_) {}
+
+        _messagesSubscription = SupabaseConfig.client
+            .from('messages')
+            .stream(primaryKey: ['id'])
+            .eq('chat_id', widget.orderId)
+            .order('created_at', ascending: true)
+            .listen((List<Map<String, dynamic>> rawMessages) async {
+              List<Map<String, dynamic>> parsedMessages = [];
+              
+              for (var m in rawMessages) {
+                final mData = Map<String, dynamic>.from(m);
+                final sId = mData['sender_id']?.toString();
+                if (sId != null && !_userNames.containsKey(sId)) {
+                  final u = await SupabaseConfig.client.from(SupabaseConfig.tableUsers).select('full_name, business_name').eq('id', sId).maybeSingle();
+                  if (u != null) {
+                    _userNames[sId] = u['business_name']?.toString().isNotEmpty == true ? u['business_name']! : u['full_name'] ?? 'User';
+                  } else {
+                    _userNames[sId] = 'User';
+                  }
+                }
+                mData['senderName'] = sId != null ? _userNames[sId] : 'User';
+                mData['senderId'] = mData['sender_id'];
+                mData['senderType'] = mData['sender_type'];
+                mData['textContent'] = mData['text_content'];
+                mData['imageUrl'] = mData['image_url'];
+                mData['lastActiveAt'] = mData['created_at'];
+                parsedMessages.add(mData);
+              }
+              
+              if (!mounted) return;
+              setState(() {
+                _messages = parsedMessages;
+                _error = null;
+              });
+              _scrollToBottom();
+            });
+      } else {
+        if (mounted) setState(() => _error = 'Order not found');
       }
-    } else if (mounted && _chat == null) {
-      setState(() => _error = 'Failed to load conversation.');
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Failed to load conversation: $e');
     }
   }
 
@@ -84,49 +132,52 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
     if (text.isEmpty || _sending) return;
 
     setState(() => _sending = true);
-    final result = await ApiService.post(
-        '/orders/${widget.orderId}/chat/messages',
-        body: {'textContent': text});
-    if (!mounted) return;
-    setState(() {
-      _sending = false;
-      if (result != null) _inputController.clear();
-    });
-    if (result != null) {
-      await _fetchThread();
-      _scrollToBottom();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Failed to send'),
-          backgroundColor: Color(0xFFEF4444)));
+    
+    try {
+      await SupabaseConfig.client.from('messages').insert({
+        'chat_id': widget.orderId,
+        'sender_id': _myUserId,
+        'sender_type': _myRole.toUpperCase(),
+        'text_content': text,
+      });
+      if (mounted) {
+        _inputController.clear();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Failed to send: $e'),
+            backgroundColor: const Color(0xFFEF4444)));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
   Future<void> _pickAndSendImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50, maxWidth: 800, maxHeight: 800);
     if (picked == null) return;
     
     setState(() => _sending = true);
-    final bytes = await picked.readAsBytes();
-    
-    final result = await ApiService.postMultipart(
-      '/orders/${widget.orderId}/chat/messages/image',
-      fields: {},
-      imageBytes: bytes,
-      imageFileName: picked.name,
-    );
-    
-    if (!mounted) return;
-    setState(() => _sending = false);
-    
-    if (result != null) {
-      await _fetchThread();
-      _scrollToBottom();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Failed to send image'),
-          backgroundColor: Color(0xFFEF4444)));
+    try {
+      final bytes = await picked.readAsBytes();
+      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      
+      await SupabaseConfig.client.from('messages').insert({
+        'chat_id': widget.orderId,
+        'sender_id': _myUserId,
+        'sender_type': _myRole.toUpperCase(),
+        'image_url': base64String,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Failed to send image: $e'),
+            backgroundColor: const Color(0xFFEF4444)));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -209,7 +260,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                                 const TextStyle(color: _dcMutedText)),
                         const SizedBox(height: 12),
                         ElevatedButton(
-                          onPressed: _fetchThread,
+                          onPressed: _initializeChat,
                           style: ElevatedButton.styleFrom(
                               backgroundColor: _dcPrimaryTeal,
                               foregroundColor: Colors.white),
@@ -310,12 +361,19 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    '${ApiConfig.baseUrl}${m['imageUrl']}',
-                    width: 200,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.grey),
-                  ),
+                  child: m['imageUrl'].toString().startsWith('data:image')
+                      ? Image.memory(
+                          base64Decode(m['imageUrl'].toString().split(',').last),
+                          width: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.grey),
+                        )
+                      : Image.network(
+                          '${ApiConfig.baseUrl}${m['imageUrl']}',
+                          width: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.grey),
+                        ),
                 ),
               ),
             if (m['textContent'] != null && m['textContent'].toString().isNotEmpty)

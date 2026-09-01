@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/api_service.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../../core/config/supabase_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'direct_chat_screen.dart';
 import 'order_chat_screen.dart';
 
@@ -44,25 +47,99 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   void _startHeartbeat() {
-    ApiService.sendHeartbeat();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      ApiService.sendHeartbeat();
+    // Initial fetch handled in initState
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        _fetchChats(silent: true);
+      }
     });
   }
 
-  Future<void> _fetchChats() async {
-    if (mounted) setState(() { _isLoading = true; _error = null; });
-    final data = await ApiService.get('/chats/user');
-    if (data != null && mounted) {
-      setState(() {
-        _chats = List<Map<String, dynamic>>.from(data);
-        _isLoading = false;
+  Future<void> _fetchChats({bool silent = false}) async {
+    if (mounted && !silent) setState(() { _isLoading = true; _error = null; });
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final myId = prefs.getString('user_id');
+      final myRole = prefs.getString('user_role');
+      if (myId == null) throw Exception('User not logged in');
+
+      final List<Map<String, dynamic>> finalChats = [];
+
+      // 1. Fetch Direct Chats
+      print("ConversationsScreen: fetching direct chats for $myId with role $myRole...");
+      final directChats = await SupabaseConfig.client
+          .from('chats')
+          .select()
+          .or('shop_owner_id.eq.$myId,stockholder_id.eq.$myId');
+      print("ConversationsScreen: found ${directChats.length} direct chats.");
+          
+      for (var chat in directChats) {
+        String counterpartName = 'Supplier';
+        String partnerId = '';
+        if (myRole == 'shop_owner') {
+          partnerId = chat['stockholder_id']?.toString() ?? '';
+        } else {
+          partnerId = chat['shop_owner_id']?.toString() ?? '';
+          counterpartName = 'Shop Owner';
+        }
+        
+        if (partnerId.isNotEmpty) {
+          try {
+             final userReq = await SupabaseConfig.client.from('users').select('name').eq('id', partnerId).maybeSingle();
+             if (userReq != null && userReq['name'] != null) counterpartName = userReq['name'];
+          } catch (_) {}
+        }
+        
+        finalChats.add({
+          'isOrderChat': false,
+          'id': chat['id'],
+          'counterpartName': counterpartName,
+          'productName': '',
+          'lastMessage': chat['last_message'] ?? 'Say hello!',
+          'updatedAt': chat['updated_at'] ?? chat['created_at'],
+        });
+      }
+
+      // 2. Fetch Order Chats (Group Chats)
+      print("ConversationsScreen: fetching order chats...");
+      final orders = await SupabaseConfig.client
+          .from('orders')
+          .select()
+          .or('shop_owner_id.eq.$myId,supplier_id.eq.$myId,delivery_man_id.eq.$myId');
+      print("ConversationsScreen: found ${orders.length} orders.");
+
+      for (var order in orders) {
+        finalChats.add({
+          'isOrderChat': true,
+          'orderId': order['id'],
+          'counterpartName': 'Group Chat',
+          'productName': order['product_name'] ?? 'Order',
+          'lastMessage': 'Tap to view conversation',
+          'updatedAt': order['updated_at'] ?? order['created_at'],
+        });
+      }
+
+      // Sort by updated_at descending
+      finalChats.sort((a, b) {
+        final dateA = DateTime.tryParse(a['updatedAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = DateTime.tryParse(b['updatedAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA);
       });
-    } else if (mounted) {
-      setState(() {
-        _error = 'Failed to load chats. Pull to refresh.';
-        _isLoading = false;
-      });
+
+      if (mounted) {
+        setState(() {
+          _chats = finalChats;
+          if (!silent) _isLoading = false;
+        });
+      }
+    } catch (e, st) {
+      if (mounted && !silent) {
+        setState(() {
+          _error = 'Failed to load chats. Pull to refresh.';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -147,7 +224,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   ),
                 ])
               : RefreshIndicator(
-                  onRefresh: _fetchChats,
+                  onRefresh: () => _fetchChats(silent: false),
                   color: _csPrimaryTeal,
                   child: _chats.isEmpty
                       ? ListView(children: const [
