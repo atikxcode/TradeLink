@@ -26,6 +26,7 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
   int _currentIndex = 0;
   String _businessName = 'My Shop';
   String _initials = 'SO';
+  String? _profilePicUrl;
   int _unreadCount = 0;
   Timer? _qrPollTimer;
 
@@ -54,10 +55,13 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
       inits += words[0][1];
     }
 
+    final profilePic = prefs.getString('user_profile_pic');
+
     if (mounted) {
       setState(() {
         _businessName = name;
         _initials = inits.toUpperCase();
+        _profilePicUrl = profilePic;
       });
     }
   }
@@ -192,32 +196,46 @@ class _ShopOwnerHomeScreenState extends State<ShopOwnerHomeScreen> {
     );
   }
 
+  ImageProvider? _getAvatarImage() {
+    if (_profilePicUrl == null || _profilePicUrl!.isEmpty) return null;
+    if (_profilePicUrl!.startsWith('data:image')) {
+      final base64Str = _profilePicUrl!.split(',').last;
+      return MemoryImage(base64Decode(base64Str));
+    }
+    return NetworkImage(_profilePicUrl!);
+  }
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                _initials,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.transparent,
+            backgroundImage: _getAvatarImage(),
+            child: _profilePicUrl == null || _profilePicUrl!.isEmpty
+                ? Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _initials,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(

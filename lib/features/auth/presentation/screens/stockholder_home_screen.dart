@@ -117,6 +117,7 @@ class _StockholderHeader extends StatefulWidget {
 class _StockholderHeaderState extends State<_StockholderHeader> {
   String _businessName = '';
   String _initials = 'S';
+  String? _profilePicUrl;
 
   @override
   void initState() {
@@ -136,8 +137,11 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
     final name = pretty(
       prefs.getString('user_business') ?? prefs.getString('user_name'),
     );
+    final profilePic = prefs.getString('user_profile_pic');
+    
     setState(() {
       _businessName = name;
+      _profilePicUrl = profilePic;
       if (name.isNotEmpty) {
         final words = name.trim().split(RegExp(r'\s+'));
         _initials = words.length >= 2
@@ -147,33 +151,47 @@ class _StockholderHeaderState extends State<_StockholderHeader> {
     });
   }
 
+  ImageProvider? _getAvatarImage() {
+    if (_profilePicUrl == null || _profilePicUrl!.isEmpty) return null;
+    if (_profilePicUrl!.startsWith('data:image')) {
+      final base64Str = _profilePicUrl!.split(',').last;
+      return MemoryImage(base64Decode(base64Str));
+    }
+    return NetworkImage(_profilePicUrl!);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                _initials,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.transparent,
+            backgroundImage: _getAvatarImage(),
+            child: _profilePicUrl == null || _profilePicUrl!.isEmpty
+                ? Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF5252), Color(0xFFFF1744)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _initials,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
