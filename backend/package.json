@@ -9,6 +9,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "migrate": "psql \"$DATABASE_URL\" -f migrations/001_stockholder_schema.sql"
   },
   "dependencies": {
@@ -26,7 +29,8 @@
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.7"
   },
   "allowScripts": {
     "esbuild@0.28.2": true
