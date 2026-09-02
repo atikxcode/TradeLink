@@ -25,6 +25,18 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/v1', requireAuth, stockholderRoutes);
 
+// Serve Flutter web build
+const webDir = path.join(process.cwd(), 'web');
+app.use(express.static(webDir));
+
+// SPA fallback — serve index.html for non-API, non-file routes
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads') || req.path.startsWith('/stock-images')) {
+    return next();
+  }
+  res.sendFile(path.join(webDir, 'index.html'));
+});
+
 // 404 handler
 app.use((_req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
